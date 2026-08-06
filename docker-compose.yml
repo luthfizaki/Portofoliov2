@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: portfoliov2-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: portfoliov2
+      POSTGRES_USER: portfolio
+      POSTGRES_PASSWORD: portfolio_local_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - portfoliov2_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portfolio -d portfoliov2"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  portfoliov2_postgres_data:

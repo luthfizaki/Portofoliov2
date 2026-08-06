@@ -1,0 +1,75 @@
+{
+  "sectionNumber": "04",
+  "sectionLabel": "HOW I WORK",
+  "headlineLines": [
+    "FROM COMPLEXITY",
+    "TO CLARITY."
+  ],
+  "intro": "I use a flexible and collaborative process to understand the problem, organize complexity, validate decisions, and support the product through implementation.",
+  "processNote": "THE PROCESS ADAPTS TO THE PRODUCT — NOT THE OTHER WAY AROUND.",
+  "steps": [
+    {
+      "number": "01",
+      "titleLines": [
+        "UNDERSTAND"
+      ],
+      "description": "Align user needs, business goals, existing workflows, and technical constraints before moving into solutions.",
+      "tags": [
+        "DISCOVERY",
+        "REQUIREMENTS",
+        "CONTEXT"
+      ],
+      "accent": "blue"
+    },
+    {
+      "number": "02",
+      "titleLines": [
+        "STRUCTURE"
+      ],
+      "description": "Translate insights into user flows, information architecture, and clear priorities for the product experience.",
+      "tags": [
+        "USER FLOW",
+        "IA",
+        "WIREFRAME"
+      ],
+      "accent": "periwinkle"
+    },
+    {
+      "number": "03",
+      "titleLines": [
+        "DESIGN &",
+        "VALIDATE"
+      ],
+      "description": "Explore interfaces, prototype key interactions, and review decisions with users, stakeholders, and the product team.",
+      "tags": [
+        "UI SYSTEM",
+        "PROTOTYPE",
+        "FEEDBACK"
+      ],
+      "accent": "warm"
+    },
+    {
+      "number": "04",
+      "titleLines": [
+        "DELIVER &",
+        "IMPROVE"
+      ],
+      "description": "Prepare implementation-ready design, support developers and QA, then refine through UAT and real product feedback.",
+      "tags": [
+        "HANDOFF",
+        "UAT",
+        "ITERATION"
+      ],
+      "accent": "green"
+    }
+  ],
+  "collaborationLabel": "CONTINUOUS COLLABORATION",
+  "collaborationText": "User needs  ↔  Business goals  ↔  Technical feasibility  ↔  Team feedback",
+  "collaborationNote": "NOT A LINEAR PROCESS",
+  "collaborationDots": [
+    "/how-i-work-dot-blue.svg",
+    "/how-i-work-dot-warm.svg",
+    "/how-i-work-dot-green.svg"
+  ],
+  "footerNote": "RESEARCH  —  STRUCTURE  —  DESIGN  —  DELIVERY  —  ITERATION"
+}

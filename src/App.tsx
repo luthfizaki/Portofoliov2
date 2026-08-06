@@ -1,0 +1,59 @@
+import { AboutSection } from "./components/AboutSection";
+import { CapabilitiesToolsSection } from "./components/CapabilitiesToolsSection";
+import { CollaborationTestimonialsSection } from "./components/CollaborationTestimonialsSection";
+import { ContactFinalStatementSection } from "./components/ContactFinalStatementSection";
+import { CreativePracticeSection } from "./components/CreativePracticeSection";
+import { ExperienceSection } from "./components/ExperienceSection";
+import { FlagshipProductsSection } from "./components/FlagshipProductsSection";
+import { HeroSection } from "./components/HeroSection";
+import { HowIWorkSection } from "./components/HowIWorkSection";
+import { ProjectArchiveSection } from "./components/ProjectArchiveSection";
+import { SelectedWorkSection } from "./components/SelectedWorkSection";
+import { SelerisCaseStudyPage } from "./components/SelerisCaseStudyPage";
+import { SkillsSection } from "./components/SkillsSection";
+import { SmoothScroll } from "./components/SmoothScroll";
+import { ContentProvider, useContent } from "./context/ContentContext";
+
+function HomeSections() {
+  const { loading, visibleSections } = useContent();
+  const isVisible = (type: string) =>
+    !visibleSections || visibleSections.includes(type);
+
+  if (loading && !visibleSections) return null;
+
+  return (
+    <SmoothScroll>
+      {isVisible("hero") && <HeroSection />}
+      {isVisible("about") && <AboutSection />}
+      {isVisible("experience") && <ExperienceSection />}
+      {isVisible("selected-work") && <SelectedWorkSection />}
+      {isVisible("flagship-products") && <FlagshipProductsSection />}
+      {isVisible("creative-practice") && <CreativePracticeSection />}
+      {isVisible("project-archive") && <ProjectArchiveSection />}
+      {isVisible("skills") && <SkillsSection />}
+      {isVisible("how-i-work") && <HowIWorkSection />}
+      {isVisible("capabilities-tools") && <CapabilitiesToolsSection />}
+      {isVisible("collaboration-testimonials") && <CollaborationTestimonialsSection />}
+      {isVisible("contact-final-statement") && <ContactFinalStatementSection />}
+    </SmoothScroll>
+  );
+}
+
+export default function App() {
+  const normalizedPath = window.location.pathname.replace(/\/$/, "");
+  const caseStudyMatch = normalizedPath.match(/^\/case-study\/([^/]+)$/);
+
+  if (caseStudyMatch) {
+    return (
+      <SmoothScroll>
+        <SelerisCaseStudyPage slug={caseStudyMatch[1]} />
+      </SmoothScroll>
+    );
+  }
+
+  return (
+    <ContentProvider>
+      <HomeSections />
+    </ContentProvider>
+  );
+}

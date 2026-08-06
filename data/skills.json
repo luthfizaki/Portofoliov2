@@ -1,0 +1,62 @@
+{
+  "sectionNumber": "07",
+  "sectionLabel": "SKILLS",
+  "headlineLines": ["SKILLS THAT TURN", "IDEAS INTO PRODUCTS."],
+  "intro": "A practical view of the design, product, research, and implementation skills I use to move work from messy requirements into shipped digital experiences.",
+  "summaryLabel": "CAPABILITY MAP",
+  "summary": "Grouped by how the work usually happens: discovery, interface design, systems, and implementation collaboration.",
+  "footerNote": "SKILL DATA IS MANAGED FROM CMS AND RENDERED DIRECTLY ON THE FRONTEND.",
+  "categories": [
+    { "name": "Discovery", "count": 1 },
+    { "name": "Interface", "count": 2 },
+    { "name": "System", "count": 1 },
+    { "name": "Implementation", "count": 2 }
+  ],
+  "items": [
+    {
+      "name": "Product UX Strategy",
+      "category": "Discovery",
+      "description": "Turning business requirements, user needs, and product constraints into clear user flows, IA, and experience direction.",
+      "level": 92,
+      "tools": ["User Flow", "IA", "Journey Map", "Product Logic"],
+      "featured": true
+    },
+    {
+      "name": "High-Fidelity UI Design",
+      "category": "Interface",
+      "description": "Designing polished mobile and dashboard interfaces with strong hierarchy, interaction states, and responsive behavior.",
+      "level": 94,
+      "tools": ["Figma", "Auto Layout", "Prototype", "Responsive UI"],
+      "featured": true
+    },
+    {
+      "name": "Design System",
+      "category": "System",
+      "description": "Building reusable components, variants, tokens, and documentation that keep product teams consistent at speed.",
+      "level": 88,
+      "tools": ["Components", "Variables", "Tokens", "Specs"],
+      "featured": true
+    },
+    {
+      "name": "Developer Handoff",
+      "category": "Implementation",
+      "description": "Preparing implementation-ready specs, edge cases, interaction notes, and QA feedback for frontend and backend teams.",
+      "level": 86,
+      "tools": ["Handoff", "UAT", "QA Notes", "API States"]
+    },
+    {
+      "name": "Dashboard UX",
+      "category": "Interface",
+      "description": "Structuring dense operational screens, tables, filters, metrics, and role-based workflows for repeated daily use.",
+      "level": 90,
+      "tools": ["Data UI", "Tables", "Filters", "Admin Panel"]
+    },
+    {
+      "name": "Frontend Awareness",
+      "category": "Implementation",
+      "description": "Designing with practical awareness of HTML, CSS, responsive constraints, accessibility, and component behavior.",
+      "level": 78,
+      "tools": ["HTML", "CSS", "React", "Responsive"]
+    }
+  ]
+}

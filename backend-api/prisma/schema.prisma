@@ -1,0 +1,384 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum ContentStatus {
+  DRAFT
+  IN_REVIEW
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ProjectVisibility {
+  PUBLIC
+  UNLISTED
+  PASSWORD_PROTECTED
+  PRIVATE
+}
+
+enum ContactStatus {
+  NEW
+  READ
+  REPLIED
+  ARCHIVED
+  SPAM
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  OTHER
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  passwordHash  String
+  avatarUrl     String?
+  role          UserRole       @default(EDITOR)
+  isActive      Boolean        @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  refreshTokens RefreshToken[]
+  revisions     Revision[]
+  auditLogs     AuditLog[]
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Project {
+  id           String            @id @default(cuid())
+  title        String
+  slug         String            @unique
+  excerpt      String?
+  description  String?
+  client       String?
+  industry     String?
+  year         Int?
+  role         String?
+  duration     String?
+  platform     String?
+  services     String[]
+  tools        String[]
+  team         Json?
+  coverMediaId String?
+  featured     Boolean           @default(false)
+  nda          Boolean           @default(false)
+  visibility   ProjectVisibility @default(PUBLIC)
+  passwordHash String?
+  status       ContentStatus     @default(DRAFT)
+  sortOrder    Int               @default(0)
+  publishedAt  DateTime?
+  scheduledAt  DateTime?
+  deletedAt    DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  coverMedia   MediaAsset?       @relation("ProjectCover", fields: [coverMediaId], references: [id])
+  blocks       ProjectBlock[]
+  metrics      ProjectMetric[]
+  categories   ProjectCategory[]
+  tags         ProjectTag[]
+  seo          SeoMetadata?
+  testimonials Testimonial[]
+  revisions    Revision[]
+
+  @@index([status, publishedAt])
+  @@index([featured, sortOrder])
+  @@index([deletedAt])
+}
+
+model ProjectBlock {
+  id            String   @id @default(cuid())
+  projectId     String
+  type          String
+  title         String?
+  content       Json
+  sortOrder     Int      @default(0)
+  isVisible     Boolean  @default(true)
+  desktop       Boolean  @default(true)
+  tablet        Boolean  @default(true)
+  mobile        Boolean  @default(true)
+  layoutVariant String?
+  background    String?
+  animation     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, sortOrder])
+}
+
+model ProjectMetric {
+  id        String  @id @default(cuid())
+  projectId String
+  value     String
+  label     String
+  note      String?
+  sortOrder Int     @default(0)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, sortOrder])
+}
+
+model Category {
+  id       String            @id @default(cuid())
+  name     String
+  slug     String            @unique
+  projects ProjectCategory[]
+}
+
+model ProjectCategory {
+  projectId  String
+  categoryId String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, categoryId])
+}
+
+model Tag {
+  id       String       @id @default(cuid())
+  name     String
+  slug     String       @unique
+  projects ProjectTag[]
+}
+
+model ProjectTag {
+  projectId String
+  tagId     String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, tagId])
+}
+
+model Experience {
+  id           String        @id @default(cuid())
+  year         String
+  role         String
+  company      String
+  contribution String
+  tags         String[]
+  featured     Boolean       @default(false)
+  status       ContentStatus @default(PUBLISHED)
+  sortOrder    Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([status, sortOrder])
+}
+
+model Skill {
+  id          String        @id @default(cuid())
+  name        String
+  category    String
+  description String
+  level       Int           @default(80)
+  tools       String[]
+  featured    Boolean       @default(false)
+  status      ContentStatus @default(PUBLISHED)
+  sortOrder   Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([status, sortOrder])
+  @@index([category])
+}
+
+model Page {
+  id          String        @id @default(cuid())
+  name        String
+  slug        String        @unique
+  status      ContentStatus @default(DRAFT)
+  isHomepage  Boolean       @default(false)
+  publishedAt DateTime?
+  scheduledAt DateTime?
+  deletedAt   DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  sections    PageSection[]
+  seo         SeoMetadata?
+  revisions   Revision[]
+
+  @@index([status, publishedAt])
+}
+
+model PageSection {
+  id            String   @id @default(cuid())
+  pageId        String
+  type          String
+  name          String?
+  content       Json
+  sortOrder     Int      @default(0)
+  isVisible     Boolean  @default(true)
+  layoutVariant String?
+  background    String?
+  animation     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  page          Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId, sortOrder])
+}
+
+model MediaAsset {
+  id                String        @id @default(cuid())
+  type              MediaType
+  filename          String
+  originalName      String
+  url               String
+  storageKey        String        @unique
+  mimeType          String
+  size              Int
+  width             Int?
+  height            Int?
+  duration          Int?
+  altText           String?
+  caption           String?
+  blurDataUrl       String?
+  deletedAt         DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  projectCovers     Project[]     @relation("ProjectCover")
+  testimonialPhotos Testimonial[] @relation("TestimonialPhoto")
+
+  @@index([type, createdAt])
+  @@index([deletedAt])
+}
+
+model Testimonial {
+  id           String        @id @default(cuid())
+  name         String
+  position     String?
+  company      String?
+  quote        String
+  initial      String?
+  avatarUrl    String?
+  accent       String        @default("blue")
+  featuredLabel String?
+  tags         String[]
+  photoMediaId String?
+  projectId    String?
+  featured     Boolean       @default(false)
+  status       ContentStatus @default(DRAFT)
+  sortOrder    Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  photoMedia   MediaAsset?   @relation("TestimonialPhoto", fields: [photoMediaId], references: [id])
+  project      Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([status, sortOrder])
+  @@index([projectId])
+}
+
+model SiteSetting {
+  id          String   @id @default(cuid())
+  group       String
+  key         String
+  value       Json
+  isPublic    Boolean  @default(false)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([group, key])
+  @@index([group])
+}
+
+model ContactMessage {
+  id          String        @id @default(cuid())
+  name        String
+  email       String
+  company     String?
+  projectType String?
+  budgetRange String?
+  message     String
+  sourcePage  String?
+  status      ContactStatus @default(NEW)
+  ipHash      String?
+  userAgent   String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model SeoMetadata {
+  id            String   @id @default(cuid())
+  projectId     String?  @unique
+  pageId        String?  @unique
+  title         String?
+  description   String?
+  canonical     String?
+  ogTitle       String?
+  ogDescription String?
+  ogImageUrl    String?
+  noIndex       Boolean  @default(false)
+  noFollow      Boolean  @default(false)
+  jsonLd        Json?
+  project       Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  page          Page?    @relation(fields: [pageId], references: [id], onDelete: Cascade)
+}
+
+model Revision {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  version    Int
+  snapshot   Json
+  changeNote String?
+  userId     String
+  projectId  String?
+  pageId     String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  page       Page?    @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([entityType, entityId, version])
+  @@index([entityType, entityId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

@@ -1,0 +1,52 @@
+{
+  "sectionNumber": "06",
+  "sectionLabel": "COLLABORATION / TESTIMONIALS",
+  "headlineLines": [
+    "GOOD DESIGN IS",
+    "BUILT TOGETHER."
+  ],
+  "intro": "The strongest outcomes come from clear communication, shared responsibility, and the ability to adapt without losing sight of the user or the business goal.",
+  "perspectiveNote": "THREE PERSPECTIVES  /  ONE SHARED STANDARD",
+  "testimonials": [
+    {
+      "number": "01",
+      "featured": true,
+      "featuredLabel": "FEATURED VOICE",
+      "quote": "I had the opportunity to work with Luthfi, a talented UI/UX designer who is also part of the RnD team. He has strong analytical thinking and the ability to create designs that perfectly align with client needs.",
+      "name": "Raka",
+      "initial": "R",
+      "role": "Lead Engineer",
+      "company": "PT. Seleris Meditekno Internasional",
+      "avatarUrl": "/testimonial-raka-avatar.svg",
+      "accent": "blue",
+      "tags": [
+        "ANALYTICAL THINKING",
+        "CLIENT ALIGNMENT"
+      ]
+    },
+    {
+      "number": "02",
+      "quote": "Luthfi consistently delivers high-quality designs. His deep understanding of user behavior and business requirements makes him an invaluable asset. He is a reliable professional to collaborate with on any project.",
+      "name": "Sarah",
+      "initial": "S",
+      "role": "Product Manager",
+      "company": "Tech Solutions Inc.",
+      "avatarUrl": "/testimonial-sarah-avatar.svg",
+      "accent": "purple"
+    },
+    {
+      "number": "03",
+      "quote": "Working with Luthfi is a great experience. He is incredibly flexible and adapts quickly to changes, ensuring the user experience is always top-notch without compromising on visual aesthetics.",
+      "name": "Budi",
+      "initial": "B",
+      "role": "Frontend Developer",
+      "company": "Creative Studio",
+      "avatarUrl": "/testimonial-budi-avatar.svg",
+      "accent": "green"
+    }
+  ],
+  "principleLabel": "WORKING PRINCIPLE",
+  "principle": "Listen clearly  →  align early  →  adapt quickly  →  deliver responsibly.",
+  "principleTags": "TRUST  /  CLARITY  /  ACCOUNTABILITY",
+  "ambientDotUrl": "/testimonial-ambient-dot.svg"
+}

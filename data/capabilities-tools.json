@@ -1,0 +1,76 @@
+{
+  "sectionNumber": "05",
+  "sectionLabel": "CAPABILITIES & TOOLS",
+  "headlineLines": [
+    "CAPABILITIES BUILT",
+    "THROUGH PRACTICE."
+  ],
+  "intro": "A multidisciplinary toolkit shaped by real product work—from structuring complex systems and designing interfaces to supporting implementation and creating visual experiences beyond the screen.",
+  "applicationNote": "SKILLS ARE SHOWN THROUGH APPLICATION, NOT PERCENTAGES.",
+  "capabilities": [
+    {
+      "number": "01",
+      "title": "PRODUCT THINKING",
+      "description": "Turning requirements, business goals, and user needs into clear product direction and structured digital flows.",
+      "tags": [
+        "USER FLOW",
+        "INFORMATION ARCHITECTURE",
+        "REQUIREMENT ANALYSIS"
+      ],
+      "badge": "FLOW",
+      "accent": "blue",
+      "tone": "blue"
+    },
+    {
+      "number": "02",
+      "title": "INTERFACE SYSTEMS",
+      "description": "Designing responsive, scalable interfaces with clear hierarchy, reusable patterns, and consistent visual language.",
+      "tags": [
+        "WIREFRAME",
+        "HIGH-FIDELITY UI",
+        "DESIGN SYSTEM",
+        "RESPONSIVE"
+      ],
+      "badge": "SYSTEM",
+      "accent": "ink",
+      "tone": "white"
+    },
+    {
+      "number": "03",
+      "title": "VALIDATION & DELIVERY",
+      "description": "Testing decisions through prototypes, aligning with stakeholders, and supporting teams through handoff and UAT.",
+      "tags": [
+        "PROTOTYPE",
+        "HANDOFF",
+        "UAT SUPPORT",
+        "QA COLLABORATION"
+      ],
+      "badge": "SHIP",
+      "accent": "warm",
+      "tone": "warm"
+    }
+  ],
+  "toolsLabel": "TOOLS I WORK WITH",
+  "toolsDescription": "Tools support the process—the thinking and decisions come first.",
+  "tools": [
+    {
+      "label": "FIGMA",
+      "featured": true
+    },
+    {
+      "label": "FIGJAM"
+    },
+    {
+      "label": "CANVA"
+    },
+    {
+      "label": "NOTION"
+    },
+    {
+      "label": "ADOBE PHOTOSHOP"
+    },
+    {
+      "label": "FRAMER"
+    }
+  ]
+}

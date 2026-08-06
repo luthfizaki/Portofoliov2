@@ -1,0 +1,66 @@
+{
+  "sectionNumber": "03.3",
+  "sectionLabel": "PROJECT ARCHIVE",
+  "headline": "MORE SELECTED WORK.",
+  "intro": "A broader selection of product, brand, photography, and web projects. The archive keeps the full range visible without competing with the flagship case studies.",
+  "footerNote": "FULL CASE STUDIES AND ADDITIONAL PROJECTS AVAILABLE ON REQUEST",
+  "projects": [
+    {
+      "year": "2026",
+      "title": "TAKAFUL MOBILE APP",
+      "category": "PRODUCT DESIGN",
+      "output": "MOBILE APP & BACK-OFFICE",
+      "linkUrl": "",
+      "featured": true
+    },
+    {
+      "year": "2026",
+      "title": "AURORA BRAND SYSTEM",
+      "category": "BRAND & VISUAL",
+      "output": "IDENTITY & COLLATERAL",
+      "linkUrl": ""
+    },
+    {
+      "year": "2026",
+      "title": "PANDARI WEBSITE",
+      "category": "WEB & FRONT-END",
+      "output": "RESPONSIVE WEBSITE",
+      "linkUrl": ""
+    },
+    {
+      "year": "2025",
+      "title": "FLEXA",
+      "category": "PRODUCT DESIGN",
+      "output": "INSURTECH PLATFORM",
+      "linkUrl": ""
+    },
+    {
+      "year": "2025",
+      "title": "SELERIS AUTOCLAIM",
+      "category": "PRODUCT DESIGN",
+      "output": "AUTOMOTIVE AI",
+      "linkUrl": ""
+    },
+    {
+      "year": "2025",
+      "title": "PHOTOGRAPHY SERIES",
+      "category": "PHOTOGRAPHY",
+      "output": "PORTRAIT & EVENT",
+      "linkUrl": ""
+    },
+    {
+      "year": "2024",
+      "title": "MYMEDIX SUPERAPP",
+      "category": "PRODUCT DESIGN",
+      "output": "HEALTHTECH MOBILE",
+      "linkUrl": ""
+    },
+    {
+      "year": "2024",
+      "title": "DESIGN PACKAGE SERIES",
+      "category": "BRAND & VISUAL",
+      "output": "SOCIAL & PRINT ASSETS",
+      "linkUrl": ""
+    }
+  ]
+}

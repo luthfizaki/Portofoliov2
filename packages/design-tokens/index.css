@@ -1,0 +1,20 @@
+:root {
+  --portfolio-background: #050b18;
+  --portfolio-surface: #081425;
+  --portfolio-surface-raised: #111e34;
+  --portfolio-text-primary: #f4f2ed;
+  --portfolio-text-secondary: #94a0b3;
+  --portfolio-border: #394a67;
+  --portfolio-accent: #377dff;
+
+  --cms-background: var(--portfolio-background);
+  --cms-surface: var(--portfolio-surface);
+  --cms-surface-raised: var(--portfolio-surface-raised);
+  --cms-text-primary: var(--portfolio-text-primary);
+  --cms-text-secondary: var(--portfolio-text-secondary);
+  --cms-border: var(--portfolio-border);
+  --cms-accent: var(--portfolio-accent);
+  --cms-success: #22c55e;
+  --cms-warning: #f59e0b;
+  --cms-danger: #ef4444;
+}

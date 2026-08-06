@@ -1,0 +1,19 @@
+{
+  "role": "UI/UX Designer",
+  "yearsRange": "2022 - 2026",
+  "experienceYears": "3+ yrs exp.",
+  "backgroundBlurUrl": "/uploads/id_ced79044051b.webp",
+  "backgroundSharpUrl": "/uploads/id_d642ad39b200.webp",
+  "firstName": "LUTHFI",
+  "lastName": "ARZAKI",
+  "tagline": "Designing impactful digital experiences through user-centered thinking",
+  "taglineHighlight": "impactful",
+  "sideTexts": [
+    { "text": "Crafting meaningful\ndigital experiences" },
+    { "text": "Designing with\npurpose and precision" },
+    { "text": "Turning ideas into\nimpactful solutions" }
+  ],
+  "scrollIndicatorText": "Scroll to explore",
+  "ctaText": "View My Work",
+  "ctaLink": "projects"
+}

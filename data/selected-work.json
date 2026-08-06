@@ -1,0 +1,14 @@
+{
+  "sectionNumber": "03",
+  "sectionLabel": "SELECTED WORK",
+  "headlineLines": ["A MULTIDISCIPLINARY", "PRACTICE."],
+  "intro": "From digital products and design systems to brand experiences, photography, and web implementation—each project begins with the same intention: making ideas clear, useful, and memorable.",
+  "disciplines": [
+    { "number": "01", "label": "PRODUCT DESIGN", "featured": true },
+    { "number": "02", "label": "BRAND & VISUAL" },
+    { "number": "03", "label": "PHOTOGRAPHY" },
+    { "number": "04", "label": "WEB & FRONT-END" }
+  ],
+  "footerNote": "PRODUCTS  /  BRANDS  /  VISUAL STORIES  /  DIGITAL EXPERIENCES",
+  "collageUrl": "/selected-work-collage.png"
+}

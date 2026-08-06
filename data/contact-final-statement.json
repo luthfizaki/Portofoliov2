@@ -1,0 +1,53 @@
+{
+  "sectionNumber": "07",
+  "sectionLabel": "CONTACT / FINAL STATEMENT",
+  "headlineLines": ["LET'S BUILD", "SOMETHING", "MEANINGFUL."],
+  "intro": "I’m open to Product Design opportunities, selected freelance collaborations, and creative projects that turn complex ideas into clear and meaningful experiences.",
+  "availabilityLabel": "AVAILABLE FOR OPPORTUNITIES",
+  "availabilityLocation": "INDONESIA · GMT+7",
+  "availabilityDotUrl": "/contact-status-dot.svg",
+  "ambientOrbUrl": "/contact-ambient-blue-orb.svg",
+  "links": [
+    {
+      "number": "01",
+      "label": "EMAIL",
+      "title": "WRITE TO ME",
+      "detail": "luthfizaki43@gmail.com",
+      "url": "mailto:luthfizaki43@gmail.com",
+      "accent": "blue",
+      "openInNewTab": false
+    },
+    {
+      "number": "02",
+      "label": "RESUME",
+      "title": "VIEW MY CV",
+      "detail": "PDF / PROFESSIONAL PROFILE",
+      "url": "/cv-luthfi-arzaki.pdf",
+      "accent": "light",
+      "openInNewTab": true
+    },
+    {
+      "number": "03",
+      "label": "LINKEDIN",
+      "title": "CONNECT PROFESSIONALLY",
+      "detail": "linkedin.com/in/luthfi-arzaki",
+      "url": "https://www.linkedin.com/in/luthfi-arzaki",
+      "accent": "blue",
+      "openInNewTab": true
+    },
+    {
+      "number": "04",
+      "label": "GITHUB",
+      "title": "EXPLORE MY CODE",
+      "detail": "PROFILE LINK READY",
+      "url": "https://github.com/luthfi-arzaki",
+      "accent": "green",
+      "openInNewTab": true
+    }
+  ],
+  "openToLabel": "OPEN TO",
+  "openTo": "Product Design  /  UI·UX  /  Brand & Visual  /  Creative Collaboration",
+  "copyright": "LUTHFI ARZAKI © 2026",
+  "footerStatement": "DESIGNED WITH PURPOSE  —  BUILT WITH CARE",
+  "backToTopLabel": "BACK TO TOP  ↑"
+}

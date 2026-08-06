@@ -1,0 +1,40 @@
+{
+  "sectionNumber": "02",
+  "sectionLabel": "EXPERIENCE",
+  "headlineLines": ["A CAREER BUILT", "THROUGH PRACTICE."],
+  "intro": "A timeline of experiences across product design, enterprise systems, health-tech, insurance, and digital innovation.",
+  "selectedLabel": "SELECTED EXPERIENCE",
+  "selectedRange": "2018 — PRESENT",
+  "footerNote": "CAREER ARCHIVE  —  SELECTED ROLES FROM 2018 TO PRESENT",
+  "rows": [
+    {
+      "year": "2023 — PRESENT",
+      "role": "UI/UX DESIGNER",
+      "company": "PT. SELERIS MEDITEKNO INTERNASIONAL",
+      "contribution": "Designing health intelligence, underwriting, insurance, and enterprise experiences across mobile and web.",
+      "tags": ["PRODUCT DESIGN", "DESIGN SYSTEM", "UAT SUPPORT"],
+      "featured": true
+    },
+    {
+      "year": "2022",
+      "role": "UI DESIGNER & QA INTERN",
+      "company": "PT. TRI NINDYA UTAMA",
+      "contribution": "Created digital interfaces, supported product testing, and collaborated with developers during implementation.",
+      "tags": ["UI DESIGN", "QA TESTING", "COLLABORATION"]
+    },
+    {
+      "year": "2021 — PRESENT",
+      "role": "FREELANCE UI/UX DESIGNER",
+      "company": "SELECTED CLIENT PROJECTS",
+      "contribution": "Helping clients turn business ideas into clear, usable digital products and responsive web experiences.",
+      "tags": ["WEB DESIGN", "PROTOTYPING", "CLIENT WORK"]
+    },
+    {
+      "year": "2018",
+      "role": "FRONT-END DEVELOPER",
+      "company": "PT. AZIMUTH SOLUTION",
+      "contribution": "Early professional experience focused on frontend development and web interface implementation.",
+      "tags": ["FRONT-END DEVELOPMENT", "WEB INTERFACE"]
+    }
+  ]
+}

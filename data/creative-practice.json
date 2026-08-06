@@ -1,0 +1,51 @@
+{
+  "sectionNumber": "03.2",
+  "sectionLabel": "CREATIVE PRACTICE",
+  "headlineLines": [
+    "BEYOND THE",
+    "INTERFACE."
+  ],
+  "intro": "My creative practice also extends to brand systems, design collateral, photography, and web experiences—helping ideas communicate consistently across digital and physical touchpoints.",
+  "cards": [
+    {
+      "anchorId": "creative-brand-visual",
+      "number": "01",
+      "titleLines": [
+        "BRAND & VISUAL",
+        "DESIGN"
+      ],
+      "description": "Creating cohesive visual systems across identity, social media, presentation, print, and physical brand assets.",
+      "tags": [
+        "IDENTITY",
+        "COLLATERAL",
+        "SOCIAL MEDIA"
+      ],
+      "imageUrl": "/creative-brand-visual.png",
+      "imageAlt": "Nexora brand identity and visual collateral collection",
+      "linkUrl": "/creative-brand-visual.png",
+      "linkLabel": "Open Brand and Visual Design preview",
+      "openInNewTab": true,
+      "theme": "light"
+    },
+    {
+      "anchorId": "creative-photography",
+      "number": "02",
+      "titleLines": [
+        "PHOTOGRAPHY &",
+        "VISUAL DIRECTION"
+      ],
+      "description": "Exploring composition, lighting, emotion, and visual storytelling beyond interface design.",
+      "tags": [
+        "PORTRAIT",
+        "PRODUCT",
+        "EVENT"
+      ],
+      "imageUrl": "/creative-photography.png",
+      "imageAlt": "Photography and visual direction moodboard with portraits, products, architecture, and events",
+      "linkUrl": "/creative-photography.png",
+      "linkLabel": "Open Photography and Visual Direction preview",
+      "openInNewTab": true,
+      "theme": "dark"
+    }
+  ]
+}

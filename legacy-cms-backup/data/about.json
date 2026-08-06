@@ -1,0 +1,23 @@
+{
+  "sectionNumber": "01",
+  "sectionLabel": "ABOUT ME",
+  "headlineLines": [
+    "DESIGNING WITH",
+    "PURPOSE.",
+    "SOLVING WITH",
+    "EMPATHY."
+  ],
+  "focus": "PRODUCT DESIGNER  /  HEALTHTECH  /  INSURTECH",
+  "lead": "I design digital products that make complex systems feel clear, purposeful, and easy to use.",
+  "paragraphs": [
+    "With more than 3 years of experience across UI/UX design, product development, and implementation support, I turn user needs and business goals into intuitive digital experiences.",
+    "My work spans health intelligence, insurance platforms, enterprise dashboards, and AI-powered products—collaborating closely with developers, QA teams, and stakeholders from early exploration through UAT."
+  ],
+  "metrics": [
+    { "value": "3+", "label": "YEARS EXPERIENCE" },
+    { "value": "10+", "label": "DIGITAL PROJECTS" },
+    { "value": "INDONESIA", "label": "BASED IN" }
+  ],
+  "footerNote": "DESIGNING WITH PURPOSE  —  BUILDING WITH IMPACT",
+  "portraitUrl": "/profile5-1.png"
+}

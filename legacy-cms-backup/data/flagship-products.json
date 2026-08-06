@@ -1,0 +1,63 @@
+{
+  "sectionNumber": "03.1",
+  "sectionLabel": "FLAGSHIP PRODUCT EXPERIENCES",
+  "headlineLines": [
+    "DIGITAL PRODUCTS",
+    "BUILT FOR REAL USE."
+  ],
+  "intro": "Three selected product experiences that represent my work across health intelligence, insurance, enterprise systems, and complex digital workflows.",
+  "footerNote": "SELECTED CASE STUDIES  —  PRODUCT DESIGN  —  REAL-WORLD SYSTEMS",
+  "projects": [
+    {
+      "number": "01",
+      "eyebrow": "HEALTHTECH  /  SUPERAPP",
+      "titleLines": ["SELERIS SUPERAPP"],
+      "description": "An integrated health and insurance ecosystem covering health scanning, underwriting, reporting, affiliate operations, and enterprise workflows.",
+      "role": "Product Designer",
+      "platform": "Mobile Application & Dashboard",
+      "scope": "User Flow, UI System, Prototype, UAT Support",
+      "linkLabel": "VIEW CASE STUDY",
+      "linkUrl": "",
+      "visualUrl": "/flagship-seleris.png",
+      "visualAlt": "Seleris Care and Seleris Life product experience screens",
+      "layout": "media-right",
+      "featured": true
+    },
+    {
+      "number": "02",
+      "eyebrow": "MOBILE UI  /  PRODUCTIVITY APP",
+      "titleLines": [
+        "NOTEIT — AUTOMATIC",
+        "NOTE-TAKING APP"
+      ],
+      "description": "A mobile interface project for an automatic note-taking application, designed to help users easily capture and save important information through a simple and organized experience.",
+      "role": "UI Designer",
+      "platform": "Mobile Application",
+      "scope": "Mobile UI  /  Automatic Note Capture  /  Information Storage",
+      "linkLabel": "VIEW NOTEIT PROJECT",
+      "linkUrl": "",
+      "visualUrl": "/flagship-noteit.png",
+      "visualAlt": "NoteIt automatic note-taking mobile application showcase",
+      "glowUrl": "/flagship-purple-glow.svg",
+      "layout": "media-left"
+    },
+    {
+      "number": "03",
+      "eyebrow": "INSURTECH  /  GEN Z PROTECTION",
+      "titleLines": [
+        "FLEXA.ASIA — FLEXIBLE",
+        "ACCIDENT INSURANCE"
+      ],
+      "description": "A Gen Z-focused accident insurance platform that lets users personalize protection through flexible premium, coverage amount, and duration options—supported by referral, affiliate, and gamified engagement features.",
+      "role": "Product Designer",
+      "platform": "Mobile Application / Dashboard Administrator",
+      "scope": "Mobile UI Design / Dashboard Design",
+      "linkLabel": "VIEW FLEXA.ASIA PROJECT",
+      "linkUrl": "",
+      "visualUrl": "/flagship-flexa.png",
+      "visualAlt": "Flexa.asia flexible accident insurance mobile and dashboard screens",
+      "glowUrl": "/flagship-purple-glow.svg",
+      "layout": "media-right"
+    }
+  ]
+}
