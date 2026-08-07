@@ -5,6 +5,8 @@ import { AuthService } from "./auth.service";
 import { LoginDto } from "./dto/login.dto";
 import { TokenService } from "./token.service";
 
+type CookieSameSite = "lax" | "strict" | "none";
+
 @Controller("auth")
 export class AuthController {
   constructor(
@@ -41,18 +43,28 @@ export class AuthController {
   }
 
   private setSessionCookies(response: Response, accessToken: string, refreshToken: string) {
-    const secure = this.config.get<string>("COOKIE_SECURE") === "true";
-    const domain = this.config.get<string>("COOKIE_DOMAIN");
-    const base = { httpOnly: true, secure, sameSite: "lax" as const, ...(domain && domain !== "localhost" ? { domain } : {}) };
+    const base = this.cookieOptions();
     response.cookie("portfolio_access_token", accessToken, { ...base, maxAge: this.tokens.accessTokenTtlMs() });
     response.cookie("portfolio_refresh_token", refreshToken, { ...base, maxAge: this.tokens.refreshTokenTtlMs() });
   }
 
   private clearSessionCookies(response: Response) {
+    response.clearCookie("portfolio_access_token", this.cookieOptions());
+    response.clearCookie("portfolio_refresh_token", this.cookieOptions());
+  }
+
+  private cookieOptions() {
+    const configuredSameSite = this.config.get<string>("COOKIE_SAME_SITE")?.toLowerCase();
+    const sameSite: CookieSameSite = configuredSameSite === "strict" || configuredSameSite === "none" ? configuredSameSite : "lax";
+    const secure = sameSite === "none" || this.config.get<string>("COOKIE_SECURE") === "true";
     const domain = this.config.get<string>("COOKIE_DOMAIN");
-    const options = domain && domain !== "localhost" ? { domain } : {};
-    response.clearCookie("portfolio_access_token", options);
-    response.clearCookie("portfolio_refresh_token", options);
+
+    return {
+      httpOnly: true,
+      secure,
+      sameSite,
+      ...(domain && domain !== "localhost" ? { domain } : {}),
+    };
   }
 
   private accessTokenFrom(request: Request) {
