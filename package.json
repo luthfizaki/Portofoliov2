@@ -17,8 +17,13 @@
     "build:api:v1": "pnpm --filter @portfoliov2/backend-api build",
     "db:generate": "pnpm --filter @portfoliov2/backend-api prisma:generate",
     "db:migrate": "pnpm --filter @portfoliov2/backend-api prisma:migrate",
+    "db:migrate:deploy": "pnpm --filter @portfoliov2/backend-api prisma:migrate:deploy",
     "db:seed": "pnpm --filter @portfoliov2/backend-api prisma:seed",
-    "db:import-legacy": "pnpm --filter @portfoliov2/backend-api exec tsx scripts/import-legacy-json.ts"
+    "db:import-legacy": "pnpm --filter @portfoliov2/backend-api exec tsx prisma/migrate-legacy-portfolio.ts",
+    "media:migrate:dry-run": "pnpm --filter @portfoliov2/backend-api media:migrate:dry-run",
+    "media:migrate": "pnpm --filter @portfoliov2/backend-api media:migrate",
+    "homepage:repair:dry-run": "pnpm --filter @portfoliov2/backend-api homepage:repair:dry-run",
+    "homepage:repair": "pnpm --filter @portfoliov2/backend-api homepage:repair"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
