@@ -2,8 +2,8 @@ import type { INestApplication } from "@nestjs/common";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
-import * as compression from "compression";
-import * as cookieParser from "cookie-parser";
+import compression from "compression";
+import cookieParser from "cookie-parser";
 import helmet from "helmet";
 
 function commaList(value?: string) {
