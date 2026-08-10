@@ -2,10 +2,19 @@ import type { INestApplication } from "@nestjs/common";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import type { RequestHandler } from "express";
 import helmet from "helmet";
 
-const compression: typeof import("compression") = require("compression");
-const cookieParser: typeof import("cookie-parser") = require("cookie-parser");
+type CompressionFactory = (
+  options?: import("compression").CompressionOptions,
+) => RequestHandler;
+type CookieParserFactory = (
+  secret?: string | string[],
+  options?: import("cookie-parser").CookieParseOptions,
+) => RequestHandler;
+
+const compression = require("compression") as CompressionFactory;
+const cookieParser = require("cookie-parser") as CookieParserFactory;
 
 function commaList(value?: string) {
   return value?.split(",").map((item) => item.trim()).filter(Boolean) ?? [];
