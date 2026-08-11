@@ -21,6 +21,7 @@ import {
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cmsNavigation } from "../components/cms-workspace";
+import { LogoutButton } from "../components/logout-button";
 import { SectionVisibilitySwitch } from "../components/section-visibility-switch";
 import { apiInternalUrl, type SessionUser } from "../lib/api";
 
@@ -203,6 +204,7 @@ export default async function DashboardPage() {
           <small>30.6 GB / 50 GB</small>
           <a href="#media">Manage Storage</a>
         </div>
+        <LogoutButton />
       </aside>
 
       <section className="overview-main">

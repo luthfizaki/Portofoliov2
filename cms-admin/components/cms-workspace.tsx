@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { SessionUser } from "../lib/api";
+import { LogoutButton } from "./logout-button";
 
 type Icon = ComponentType<{ size?: number; strokeWidth?: number }>;
 
@@ -80,6 +81,7 @@ export function CmsWorkspace({
           <small>30.6 GB / 50 GB</small>
           <Link href="/media">Manage Storage</Link>
         </div>
+        <LogoutButton />
       </aside>
 
       <section className="overview-main">
