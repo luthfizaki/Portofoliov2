@@ -3,7 +3,6 @@
 import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { apiUrl } from "../lib/api";
 
 export function LogoutButton() {
   const router = useRouter();
@@ -12,7 +11,7 @@ export function LogoutButton() {
   async function signOut() {
     setIsSigningOut(true);
     try {
-      await fetch(`${apiUrl}/api/v1/auth/logout`, { method: "POST", credentials: "include" });
+      await fetch("/api/auth/logout", { method: "POST" });
     } finally {
       router.replace("/login");
       router.refresh();

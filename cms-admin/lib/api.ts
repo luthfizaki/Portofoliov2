@@ -1,6 +1,9 @@
-export const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+export const apiUrl = "";
 
-export const apiInternalUrl = process.env.API_INTERNAL_URL ?? apiUrl;
+export const apiInternalUrl =
+  process.env.API_INTERNAL_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:4000";
 
 export type SessionUser = {
   id: string;

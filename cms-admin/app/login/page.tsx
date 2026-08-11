@@ -3,7 +3,6 @@
 import { ArrowRight, CheckCircle2, Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { apiUrl } from "../../lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,7 +17,7 @@ export default function LoginPage() {
     setError("");
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${apiUrl}/api/v1/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ email, password }) });
+      const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
       const body = await response.json().catch(() => null);
       if (!response.ok || !body?.success) {
         setError(body?.message ?? "Unable to sign in. Check your credentials and try again.");
