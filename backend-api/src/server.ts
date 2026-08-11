@@ -20,9 +20,8 @@ function commaList(value?: string) {
   return value?.split(",").map((item) => item.trim()).filter(Boolean) ?? [];
 }
 
-export function configureNestApp(app: INestApplication) {
-  const config = app.get(ConfigService);
-  const allowedOrigins = [
+function allowedCorsOrigins(config: ConfigService) {
+  return [
     config.get<string>("PORTFOLIO_URL"),
     config.get<string>("CMS_URL"),
     ...commaList(config.get<string>("CORS_ORIGINS")),
@@ -30,7 +29,12 @@ export function configureNestApp(app: INestApplication) {
     "http://127.0.0.1:3100",
     "http://localhost:3001",
     "http://127.0.0.1:3001",
-  ].filter((value): value is string => Boolean(value));
+  ].filter((value): value is string => Boolean(value) && value !== "*");
+}
+
+export function configureNestApp(app: INestApplication) {
+  const config = app.get(ConfigService);
+  const allowedOrigins = allowedCorsOrigins(config);
 
   app.setGlobalPrefix("api/v1");
   app.use(helmet());

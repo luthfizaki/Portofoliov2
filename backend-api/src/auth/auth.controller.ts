@@ -54,9 +54,14 @@ export class AuthController {
   }
 
   private cookieOptions() {
+    const isProduction = this.config.get<string>("NODE_ENV") === "production";
     const configuredSameSite = this.config.get<string>("COOKIE_SAME_SITE")?.toLowerCase();
-    const sameSite: CookieSameSite = configuredSameSite === "strict" || configuredSameSite === "none" ? configuredSameSite : "lax";
-    const secure = sameSite === "none" || this.config.get<string>("COOKIE_SECURE") === "true";
+    const sameSite: CookieSameSite = isProduction
+      ? "none"
+      : configuredSameSite === "strict" || configuredSameSite === "none"
+        ? configuredSameSite
+        : "lax";
+    const secure = isProduction || sameSite === "none" || this.config.get<string>("COOKIE_SECURE") === "true";
     const domain = this.config.get<string>("COOKIE_DOMAIN");
 
     return {
