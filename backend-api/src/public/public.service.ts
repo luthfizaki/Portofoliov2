@@ -36,6 +36,7 @@ export class PublicService {
     const page = this.positiveInteger(pageValue, 1);
     const limit = Math.min(this.positiveInteger(limitValue, 12), MAX_LIMIT);
     const where: Prisma.ProjectWhereInput = {
+      visibility: "PUBLIC",
       status: "PUBLISHED",
       deletedAt: null,
       publishedAt: { lte: new Date() },
@@ -47,7 +48,17 @@ export class PublicService {
         orderBy: [{ featured: "desc" }, { sortOrder: "asc" }, { publishedAt: "desc" }],
         skip: (page - 1) * limit,
         take: limit,
-        include: { coverMedia: { select: { url: true, altText: true } }, categories: { include: { category: true } } },
+        include: {
+          coverMedia: { select: { url: true, altText: true } },
+          categories: { include: { category: true } },
+          tags: { include: { tag: true } },
+          metrics: { orderBy: { sortOrder: "asc" } },
+          blocks: {
+            where: { isVisible: true, type: { in: ["flagship", "archive", "HERO"] } },
+            orderBy: { sortOrder: "asc" },
+            select: { type: true, title: true, content: true, sortOrder: true, layoutVariant: true },
+          },
+        },
       }),
       this.prisma.project.count({ where }),
     ]);
@@ -60,15 +71,17 @@ export class PublicService {
 
   async project(slug: string) {
     const project = await this.prisma.project.findFirst({
-      where: { slug, status: "PUBLISHED", deletedAt: null, publishedAt: { lte: new Date() } },
+      where: { slug, visibility: "PUBLIC", status: "PUBLISHED", deletedAt: null, publishedAt: { lte: new Date() } },
       include: {
         coverMedia: { select: { url: true, altText: true } },
         categories: { include: { category: true } },
+        tags: { include: { tag: true } },
+        metrics: { orderBy: { sortOrder: "asc" } },
         blocks: { where: { isVisible: true }, orderBy: { sortOrder: "asc" } },
       },
     });
     if (!project) throw new NotFoundException({ success: false, code: "NOT_FOUND", message: "Project was not found." });
-    return { success: true, data: { ...this.toPublicProject(project), blocks: project.blocks } };
+    return { success: true, data: this.toPublicProject(project) };
   }
 
   async experiences() {
@@ -84,14 +97,17 @@ export class PublicService {
   }
 
   private toPublicProject(project: {
-    id: string; title: string; slug: string; excerpt: string | null; client: string | null; industry: string | null; year: number | null; role: string | null; duration: string | null; platform: string | null; services: string[]; tools: string[]; featured: boolean; coverMedia: { url: string; altText: string | null } | null; categories: Array<{ category: { name: string } }>;
+    id: string; title: string; slug: string; excerpt: string | null; description: string | null; client: string | null; industry: string | null; year: number | null; role: string | null; duration: string | null; platform: string | null; services: string[]; tools: string[]; featured: boolean; sortOrder: number; coverMedia: { url: string; altText: string | null } | null; categories: Array<{ category: { name: string; slug: string } }>; tags?: Array<{ tag: { name: string; slug: string } }>; metrics?: Array<{ value: string; label: string; note: string | null; sortOrder: number }>; blocks?: Array<{ type: string; title: string | null; content: Prisma.JsonValue; sortOrder: number; layoutVariant: string | null }>;
   }) {
     return {
-      id: project.id, title: project.title, slug: project.slug, excerpt: project.excerpt,
+      id: project.id, title: project.title, slug: project.slug, excerpt: project.excerpt, description: project.description,
       client: project.client, industry: project.industry, year: project.year, role: project.role,
       duration: project.duration, platform: project.platform, services: project.services, tools: project.tools,
-      featured: project.featured, coverUrl: project.coverMedia?.url ?? null, coverAlt: project.coverMedia?.altText ?? null,
-      categories: project.categories.map((item) => item.category.name),
+      featured: project.featured, sortOrder: project.sortOrder, coverUrl: project.coverMedia?.url ?? null, coverAlt: project.coverMedia?.altText ?? null,
+      categories: project.categories.map((item) => ({ name: item.category.name, slug: item.category.slug })),
+      tags: project.tags?.map((item) => ({ name: item.tag.name, slug: item.tag.slug })) ?? [],
+      metrics: project.metrics?.map((metric) => ({ value: metric.value, label: metric.label, note: metric.note, sortOrder: metric.sortOrder })) ?? [],
+      blocks: project.blocks?.map((block) => ({ type: block.type, title: block.title, content: block.content, sortOrder: block.sortOrder, layoutVariant: block.layoutVariant })) ?? [],
     };
   }
 

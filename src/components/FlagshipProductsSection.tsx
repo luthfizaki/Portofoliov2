@@ -72,9 +72,7 @@ export function FlagshipProductsSection() {
 
         <div className="flagship-products__projects">
           {flagshipProducts.projects.map((project, index) => {
-            const isSeleris = project.titleLines.join(" ").toUpperCase().includes("SELERIS SUPERAPP");
-            const projectLinkUrl = project.linkUrl ||
-              (isSeleris ? "/case-study/seleris-superapp" : "");
+            const projectLinkUrl = project.linkUrl;
             const isMediaLeft = project.layout === "media-left";
             const projectClassName = [
               "flagship-products__project",
@@ -153,6 +151,18 @@ export function FlagshipProductsSection() {
                       )}
                       {projectLinkUrl ? (
                         <a href={projectLinkUrl} aria-label={`Open ${project.titleLines.join(" ")} case study`}>
+                          {project.visualUrl && (
+                            <img
+                              className="flagship-products__visual-image"
+                              src={project.visualUrl}
+                              alt={project.visualAlt}
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          )}
+                        </a>
+                      ) : (
+                        project.visualUrl && (
                           <img
                             className="flagship-products__visual-image"
                             src={project.visualUrl}
@@ -160,15 +170,7 @@ export function FlagshipProductsSection() {
                             loading="lazy"
                             decoding="async"
                           />
-                        </a>
-                      ) : (
-                        <img
-                          className="flagship-products__visual-image"
-                          src={project.visualUrl}
-                          alt={project.visualAlt}
-                          loading="lazy"
-                          decoding="async"
-                        />
+                        )
                       )}
                     </div>
                   </div>

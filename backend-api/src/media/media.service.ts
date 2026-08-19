@@ -12,6 +12,29 @@ type UploadedFile = {
   buffer: Buffer;
 };
 
+class DisabledRealtimeTransport {
+  readonly CONNECTING = 0;
+  readonly OPEN = 1;
+  readonly CLOSING = 2;
+  readonly CLOSED = 3;
+  readonly readyState = this.CLOSED;
+  readonly url = "";
+  readonly protocol = "";
+  onopen: ((this: unknown, ev: Event) => unknown) | null = null;
+  onmessage: ((this: unknown, ev: MessageEvent) => unknown) | null = null;
+  onclose: ((this: unknown, ev: CloseEvent) => unknown) | null = null;
+  onerror: ((this: unknown, ev: Event) => unknown) | null = null;
+
+  constructor() {
+    throw new Error("Realtime is disabled for MediaService.");
+  }
+
+  close() {}
+  send() {}
+  addEventListener() {}
+  removeEventListener() {}
+}
+
 @Injectable()
 export class MediaService {
   private readonly supabase: SupabaseClient;
@@ -32,6 +55,9 @@ export class MediaService {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
+      },
+      realtime: {
+        transport: DisabledRealtimeTransport,
       },
     });
 

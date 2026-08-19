@@ -21,11 +21,17 @@ type PublicProject = {
   title: string;
   slug: string;
   excerpt: string | null;
+  description: string | null;
+  industry: string | null;
   role: string | null;
   platform: string | null;
   services: string[];
+  coverUrl: string | null;
+  coverAlt: string | null;
   blocks: ProjectBlock[];
 };
+
+const allowCaseStudyFallback = import.meta.env.DEV;
 
 function SectionLabel({ number, children }: { number: string; children: string }) {
   return (
@@ -45,12 +51,16 @@ function stringValue(value: unknown, fallback = "") {
   return typeof value === "string" ? value : fallback;
 }
 
+function fallbackValue(value: string, fallback = "") {
+  return allowCaseStudyFallback ? value : fallback;
+}
+
 function arrayValue(value: unknown, fallback: string[]) {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : fallback;
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : allowCaseStudyFallback ? fallback : [];
 }
 
 function galleryValue(value: unknown) {
-  if (!Array.isArray(value)) return fallbackGallery;
+  if (!Array.isArray(value)) return allowCaseStudyFallback ? fallbackGallery : [];
   return value.map((item, index) => {
     const record = item && typeof item === "object" ? item as Record<string, unknown> : {};
     return {
@@ -65,6 +75,7 @@ function galleryValue(value: unknown) {
 
 export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: string }) {
   const [project, setProject] = useState<PublicProject | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     document.body.classList.add("case-study-is-visible");
@@ -80,7 +91,13 @@ export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: str
         const body = await response.json();
         if (!cancelled && response.ok && body?.success) setProject(body.data);
       } catch (error) {
-        console.warn("Project detail API unavailable; fallback case study content is active.", error);
+        if (allowCaseStudyFallback) {
+          console.warn("Project detail API unavailable; development fallback case study content is active.", error);
+        } else {
+          console.error("Project detail API unavailable; production fallback content is disabled.", error);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
     void fetchProject();
@@ -94,30 +111,50 @@ export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: str
     const gallery = block(project, "CASE_GALLERY");
     const next = block(project, "CASE_NEXT");
     return {
-      title: project?.title ?? "SELERIS SUPERAPP",
-      eyebrow: stringValue(hero.eyebrow, "HEALTHTECH / INSURTECH / PRODUCT DESIGN"),
-      lede: stringValue(hero.lede, project?.excerpt ?? "A connected health and insurance ecosystem designed across mobile applications, underwriting journeys, reporting, affiliate operations, and enterprise dashboards."),
-      heroVisualUrl: stringValue(hero.heroVisualUrl, stringValue(legacyHero.imageUrl, "/case-studies/seleris/hero-visual.png")),
-      heroVisualAlt: stringValue(hero.heroVisualAlt, stringValue(legacyHero.imageAlt, "Seleris Care and Seleris Life interface collection")),
-      role: project?.role ?? "Product Designer",
-      platform: project?.platform ?? "Mobile App & Dashboard",
-      scope: project?.services?.length ? project.services.join(" · ") : "UX/UI · System · UAT",
-      summaryHeading: stringValue(summary.heading, "A CLOSER VIEW\nOF THE PROJECT."),
-      summaryIntro: stringValue(summary.intro, "Seleris SuperApp is a connected product ecosystem that combines health assessment, insurance underwriting, reporting, affiliate operations, and enterprise monitoring across mobile and dashboard experiences."),
-      overview: stringValue(summary.overview, "CARE and LIFE operate within one product family. CARE supports personal and business health experiences, including scanning, family plans, weekly results, recommendations, affiliate packages, commissions, and withdrawals. LIFE supports insurance underwriting through identity verification, structured forms, face and appearance scanning, processing, and assessment results."),
-      contribution: stringValue(summary.contribution, "I worked across product definition and implementation support—turning requirements and backend logic into user flows, information architecture, high-fidelity interfaces, reusable patterns, interactive prototypes, and implementation-ready specifications. I also collaborated with frontend, backend, QA, and stakeholders during refinement and UAT."),
-      challenge: stringValue(summary.challenge, "The main challenge was not only visual design, but translating long and data-heavy workflows into clear steps. Different users needed different levels of information, while product rules, backend states, scanning conditions, failure scenarios, and underwriting outputs still had to remain consistent and understandable."),
+      title: project?.title ?? fallbackValue("SELERIS SUPERAPP"),
+      eyebrow: stringValue(hero.eyebrow, project?.industry?.toUpperCase() ?? fallbackValue("HEALTHTECH / INSURTECH / PRODUCT DESIGN")),
+      lede: stringValue(hero.lede, project?.excerpt ?? project?.description ?? fallbackValue("A connected health and insurance ecosystem designed across mobile applications, underwriting journeys, reporting, affiliate operations, and enterprise dashboards.")),
+      heroVisualUrl: stringValue(hero.heroVisualUrl, stringValue(legacyHero.imageUrl, project?.coverUrl ?? fallbackValue("/case-studies/seleris/hero-visual.png"))),
+      heroVisualAlt: stringValue(hero.heroVisualAlt, stringValue(legacyHero.imageAlt, project?.coverAlt ?? project?.title ?? fallbackValue("Seleris Care and Seleris Life interface collection"))),
+      role: project?.role ?? fallbackValue("Product Designer"),
+      platform: project?.platform ?? fallbackValue("Mobile App & Dashboard"),
+      scope: project?.services?.length ? project.services.join(" · ") : fallbackValue("UX/UI · System · UAT"),
+      summaryHeading: stringValue(summary.heading, fallbackValue("A CLOSER VIEW\nOF THE PROJECT.")),
+      summaryIntro: stringValue(summary.intro, project?.description ?? fallbackValue("Seleris SuperApp is a connected product ecosystem that combines health assessment, insurance underwriting, reporting, affiliate operations, and enterprise monitoring across mobile and dashboard experiences.")),
+      overview: stringValue(summary.overview, project?.description ?? fallbackValue("CARE and LIFE operate within one product family. CARE supports personal and business health experiences, including scanning, family plans, weekly results, recommendations, affiliate packages, commissions, and withdrawals. LIFE supports insurance underwriting through identity verification, structured forms, face and appearance scanning, processing, and assessment results.")),
+      contribution: stringValue(summary.contribution, fallbackValue("I worked across product definition and implementation support-turning requirements and backend logic into user flows, information architecture, high-fidelity interfaces, reusable patterns, interactive prototypes, and implementation-ready specifications. I also collaborated with frontend, backend, QA, and stakeholders during refinement and UAT.")),
+      challenge: stringValue(summary.challenge, fallbackValue("The main challenge was not only visual design, but translating long and data-heavy workflows into clear steps. Different users needed different levels of information, while product rules, backend states, scanning conditions, failure scenarios, and underwriting outputs still had to remain consistent and understandable.")),
       deliverables: arrayValue(summary.deliverables, fallbackDeliverables),
-      galleryHeading: stringValue(gallery.heading, "SELECTED\nINTERFACES."),
-      galleryIntro: stringValue(gallery.intro, "This section is fully repeatable. Each uploaded item only needs an image, optional caption, and layout type: full width or half width."),
-      galleryNote: stringValue(gallery.note, "CMS BLOCKS / FULL WIDTH / TWO COLUMN / OPTIONAL CAPTION"),
+      galleryHeading: stringValue(gallery.heading, fallbackValue("SELECTED\nINTERFACES.")),
+      galleryIntro: stringValue(gallery.intro, fallbackValue("This section is fully repeatable. Each uploaded item only needs an image, optional caption, and layout type: full width or half width.")),
+      galleryNote: stringValue(gallery.note, fallbackValue("CMS BLOCKS / FULL WIDTH / TWO COLUMN / OPTIONAL CAPTION")),
       galleryItems: galleryValue(gallery.items),
-      nextLabel: stringValue(next.label, "NEXT CASE STUDY"),
-      nextTitle: stringValue(next.title, "NOTEIT — AUTOMATIC NOTE-TAKING APP"),
-      nextText: stringValue(next.text, "A focused mobile UI project for capturing and organizing important information."),
+      nextLabel: stringValue(next.label, fallbackValue("NEXT CASE STUDY")),
+      nextTitle: stringValue(next.title, fallbackValue("NOTEIT - AUTOMATIC NOTE-TAKING APP")),
+      nextText: stringValue(next.text, fallbackValue("A focused mobile UI project for capturing and organizing important information.")),
       nextUrl: stringValue(next.url, "/#flagship-products")
     };
   }, [project]);
+
+  if (!loading && !project && !allowCaseStudyFallback) {
+    return (
+      <main className="case-study" aria-labelledby="case-study-title">
+        <section className="case-study__hero">
+          <div className="case-study__container">
+            <div className="case-study__topbar">
+              <a href="/#flagship-products">←&nbsp; BACK TO SELECTED WORK</a>
+              <span>CASE STUDY&nbsp; / &nbsp;{slug}</span>
+            </div>
+            <div className="case-study__hero-copy">
+              <p className="case-study__eyebrow">PROJECT UNAVAILABLE</p>
+              <h1 id="case-study-title">Case study not found</h1>
+              <p className="case-study__lede">This project is not currently available through the public portfolio API.</p>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="case-study" aria-labelledby="case-study-title">

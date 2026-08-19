@@ -168,6 +168,43 @@ interface PublicContentResponse<T> {
   data: T;
 }
 
+interface PublicProjectsResponse {
+  success: boolean;
+  data: PublicProject[];
+}
+
+interface PublicProjectBlock {
+  type: string;
+  title: string | null;
+  content: Record<string, unknown>;
+  sortOrder: number;
+  layoutVariant: string | null;
+}
+
+interface PublicProject {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  description: string | null;
+  client: string | null;
+  industry: string | null;
+  year: number | null;
+  role: string | null;
+  duration: string | null;
+  platform: string | null;
+  services: string[];
+  tools: string[];
+  featured: boolean;
+  sortOrder: number;
+  coverUrl: string | null;
+  coverAlt: string | null;
+  categories: Array<{ name: string; slug: string }>;
+  tags: Array<{ name: string; slug: string }>;
+  metrics: Array<{ value: string; label: string; note: string | null; sortOrder: number }>;
+  blocks: PublicProjectBlock[];
+}
+
 export interface HowIWorkContent {
   sectionNumber: string;
   sectionLabel: string;
@@ -324,8 +361,97 @@ const ContentContext = createContext<ContentValue>({
   refresh: () => undefined
 });
 
+const allowLocalDefaults = import.meta.env.DEV;
+const flagshipProjectLimit = 3;
+
 export function useContent() {
   return useContext(ContentContext);
+}
+
+function stringValue(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
+function projectBlock(project: PublicProject, type: string) {
+  return project.blocks.find((block) => block.type === type)?.content ?? {};
+}
+
+function splitTitleLines(title: string) {
+  return title.includes(" — ") ? title.split(" — ").map((line) => line.trim()) : [title];
+}
+
+function caseStudyUrl(slug: string) {
+  return `/case-study/${slug}`;
+}
+
+function projectCategory(project: PublicProject) {
+  return project.categories[0]?.name ?? project.industry ?? "Uncategorized";
+}
+
+function projectOutput(project: PublicProject, archiveBlock: Record<string, unknown>) {
+  return stringValue(
+    archiveBlock.output,
+    project.platform || project.services.join(" / ") || project.excerpt || project.description || ""
+  );
+}
+
+function mapFlagshipProjects(projects: PublicProject[]): FlagshipProductsContent["projects"] {
+  return projects.slice(0, flagshipProjectLimit).map((project, index) => {
+    const flagshipBlock = projectBlock(project, "flagship");
+    const heroBlock = projectBlock(project, "HERO");
+    const linkLabel = stringValue(flagshipBlock.linkLabel, "VIEW CASE STUDY");
+    const visualUrl = stringValue(
+      flagshipBlock.visualUrl,
+      project.coverUrl || stringValue(heroBlock.imageUrl)
+    );
+
+    return {
+      number: stringValue(flagshipBlock.number, String(index + 1).padStart(2, "0")),
+      eyebrow: stringValue(
+        flagshipBlock.eyebrow,
+        [projectCategory(project), project.industry].filter(Boolean).join("  /  ").toUpperCase()
+      ),
+      titleLines: splitTitleLines(project.title),
+      description: project.description || project.excerpt || "",
+      role: project.role || "",
+      platform: project.platform || "",
+      scope: stringValue(flagshipBlock.scope, project.services.join(" / ")),
+      linkLabel,
+      linkUrl: caseStudyUrl(project.slug),
+      visualUrl,
+      visualAlt: stringValue(
+        flagshipBlock.visualAlt,
+        project.coverAlt || stringValue(heroBlock.imageAlt, project.title)
+      ),
+      glowUrl: stringValue(flagshipBlock.glowUrl) || undefined,
+      layout: stringValue(flagshipBlock.layout, index % 2 === 1 ? "media-left" : "media-right") === "media-left" ? "media-left" : "media-right",
+      featured: project.featured,
+    };
+  });
+}
+
+function mapArchiveProjects(projects: PublicProject[]): ProjectArchiveContent["projects"] {
+  return projects.map((project) => {
+    const archiveBlock = projectBlock(project, "archive");
+    return {
+      year: project.year?.toString() ?? "",
+      title: project.title,
+      category: stringValue(archiveBlock.category, projectCategory(project)).toUpperCase(),
+      output: projectOutput(project, archiveBlock).toUpperCase(),
+      linkUrl: caseStudyUrl(project.slug),
+      featured: project.featured,
+    };
+  });
+}
+
+async function fetchPublicProjects(query: string) {
+  const response = await fetch(`${publicApiUrl}/api/v1/public/projects${query}`);
+  if (!response.ok) throw new Error("Public project API is unavailable.");
+  const body = await response.json() as PublicProjectsResponse;
+  if (!body.success || !Array.isArray(body.data)) {
+    throw new Error("Public project response is invalid.");
+  }
+  return body.data;
 }
 
 export function ContentProvider({ children }: { children: ReactNode }) {
@@ -375,6 +501,8 @@ export function ContentProvider({ children }: { children: ReactNode }) {
       if (!page.success) throw new Error("Public content response is invalid.");
       const sectionTypes = page.data.sections.map((section) => section.type);
       setVisibleSections(sectionTypes);
+      let nextFlagshipProducts = flagshipProducts;
+      let nextProjectArchive = projectArchive;
 
       for (const section of page.data.sections) {
         switch (section.type) {
@@ -382,15 +510,34 @@ export function ContentProvider({ children }: { children: ReactNode }) {
           case "about": setAbout(section.content as AboutContent); break;
           case "experience": setExperience(section.content as ExperienceContent); break;
           case "selected-work": setSelectedWork(section.content as SelectedWorkContent); break;
-          case "flagship-products": setFlagshipProducts(section.content as FlagshipProductsContent); break;
+          case "flagship-products": nextFlagshipProducts = section.content as FlagshipProductsContent; break;
           case "creative-practice": setCreativePractice(section.content as CreativePracticeContent); break;
-          case "project-archive": setProjectArchive(section.content as ProjectArchiveContent); break;
+          case "project-archive": nextProjectArchive = section.content as ProjectArchiveContent; break;
           case "skills": setSkills(section.content as SkillsContent); break;
           case "how-i-work": setHowIWork(section.content as HowIWorkContent); break;
           case "capabilities-tools": setCapabilitiesTools(section.content as CapabilitiesToolsContent); break;
           case "collaboration-testimonials": setCollaborationTestimonials(section.content as CollaborationTestimonialsContent); break;
           case "contact-final-statement": setContactFinalStatement(section.content as ContactFinalStatementContent); break;
         }
+      }
+
+      try {
+        const [featuredProjects, archiveProjects] = await Promise.all([
+          fetchPublicProjects(`?featured=true&limit=${flagshipProjectLimit}`),
+          fetchPublicProjects("?limit=50")
+        ]);
+        setFlagshipProducts({
+          ...nextFlagshipProducts,
+          projects: mapFlagshipProjects(featuredProjects)
+        });
+        setProjectArchive({
+          ...nextProjectArchive,
+          projects: mapArchiveProjects(archiveProjects)
+        });
+      } catch (error) {
+        console.error("Public project API unavailable; project sections will render empty.", error);
+        setFlagshipProducts({ ...nextFlagshipProducts, projects: [] });
+        setProjectArchive({ ...nextProjectArchive, projects: [] });
       }
 
       const skillsResponse = await fetch(`${publicApiUrl}/api/v1/public/skills`);
@@ -406,7 +553,12 @@ export function ContentProvider({ children }: { children: ReactNode }) {
       }
 
     } catch (error) {
-      console.warn("Public content API unavailable; local defaults are active.", error);
+      if (allowLocalDefaults) {
+        console.warn("Public content API unavailable; local defaults are active.", error);
+      } else {
+        console.error("Public content API unavailable; production local defaults are disabled.", error);
+        setVisibleSections([]);
+      }
     } finally {
       setLoading(false);
     }
