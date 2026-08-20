@@ -20,26 +20,35 @@ export function FlagshipProductsSection() {
       { threshold: 0.02 }
     );
 
+    sectionObserver.observe(section);
+
+    return () => {
+      sectionObserver.disconnect();
+      document.body.classList.remove("flagship-products-is-visible");
+    };
+  }, []);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+
     const projectObserver = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          entry.target.classList.toggle("project-is-visible", entry.isIntersecting);
+          if (entry.isIntersecting) {
+            entry.target.classList.add("project-is-visible");
+          }
         }
       },
       { rootMargin: "-10% 0px -12%", threshold: 0.12 }
     );
 
-    sectionObserver.observe(section);
     section
       .querySelectorAll<HTMLElement>(".flagship-products__project")
       .forEach((project) => projectObserver.observe(project));
 
-    return () => {
-      sectionObserver.disconnect();
-      projectObserver.disconnect();
-      document.body.classList.remove("flagship-products-is-visible");
-    };
-  }, []);
+    return () => projectObserver.disconnect();
+  }, [flagshipProducts.projects]);
 
   return (
     <section
