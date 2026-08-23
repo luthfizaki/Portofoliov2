@@ -2,7 +2,7 @@
 
 import { Check, Code2, ImagePlus, Plus, Save, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { SessionUser } from "../lib/api";
 import { apiUrl } from "../lib/api";
 import { CmsWorkspace } from "./cms-workspace";
@@ -20,6 +20,25 @@ export type EditablePage = {
 
 const hiddenKeys = new Set(["id", "createdAt", "updatedAt", "deletedAt"]);
 
+type CanonicalProject = {
+  id: string;
+  title: string;
+  slug: string;
+  featured: boolean;
+  visibility: string;
+  status: string;
+  publishedAt: string | null;
+  deletedAt: string | null;
+};
+
+type CanonicalSnapshot = {
+  experiences: Array<{ id: string; role: string; company: string; status: string }>;
+  testimonials: Array<{ id: string; name: string; status: string }>;
+  projects: CanonicalProject[];
+  loading: boolean;
+  error: string;
+};
+
 function titleFromKey(key: string) {
   return key
     .replace(/([A-Z])/g, " $1")
@@ -35,6 +54,24 @@ function isRecord(value: FormValue): value is FormObject {
 function isAssetField(key: string, value: FormValue) {
   if (typeof value !== "string") return false;
   return /(url|image|avatar|portrait|background|visual|collage|glow|dot|orb|pdf|resume|cv)/i.test(key);
+}
+
+function isCanonicalContentPath(sectionType: string, path: Path) {
+  const type = sectionType.toLowerCase();
+  const rootKey = String(path[0] ?? "").toLowerCase();
+
+  if (type === "contact-final-statement") return true;
+  if (type === "experience" && rootKey === "rows") return true;
+  if (rootKey === "testimonials" || rootKey === "projects") return true;
+  return false;
+}
+
+function isPublicProject(project: CanonicalProject) {
+  return project.visibility === "PUBLIC"
+    && project.status === "PUBLISHED"
+    && !project.deletedAt
+    && Boolean(project.publishedAt)
+    && new Date(project.publishedAt as string).getTime() <= Date.now();
 }
 
 function updateAtPath(value: FormValue, path: Path, nextValue: FormValue): FormValue {
@@ -94,6 +131,51 @@ export function PageEditor({ page, user }: { page: EditablePage; user: SessionUs
   const [uploading, setUploading] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [canonical, setCanonical] = useState<CanonicalSnapshot>({
+    experiences: [],
+    testimonials: [],
+    projects: [],
+    loading: true,
+    error: "",
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCanonicalRecords() {
+      try {
+        const [experienceResponse, testimonialResponse, projectResponse] = await Promise.all([
+          fetch(`${apiUrl}/api/v1/admin/experiences`, { credentials: "include" }),
+          fetch(`${apiUrl}/api/v1/admin/testimonials`, { credentials: "include" }),
+          fetch(`${apiUrl}/api/v1/admin/projects?limit=100`, { credentials: "include" }),
+        ]);
+
+        const experienceBody = await experienceResponse.json().catch(() => null) as { data?: CanonicalSnapshot["experiences"] } | null;
+        const testimonialBody = await testimonialResponse.json().catch(() => null) as { data?: CanonicalSnapshot["testimonials"] } | null;
+        const projectBody = await projectResponse.json().catch(() => null) as { data?: Array<{ id: string }> } | null;
+        const projectDetails = await Promise.all((projectBody?.data ?? []).map(async (project) => {
+          const response = await fetch(`${apiUrl}/api/v1/admin/projects/${project.id}`, { credentials: "include" });
+          const body = await response.json().catch(() => null) as { data?: CanonicalProject } | null;
+          return body?.data ?? null;
+        }));
+
+        if (!cancelled) {
+          setCanonical({
+            experiences: experienceBody?.data ?? [],
+            testimonials: testimonialBody?.data ?? [],
+            projects: projectDetails.filter((project): project is CanonicalProject => Boolean(project)),
+            loading: false,
+            error: "",
+          });
+        }
+      } catch {
+        if (!cancelled) setCanonical((current) => ({ ...current, loading: false, error: "Canonical records could not be loaded." }));
+      }
+    }
+
+    void loadCanonicalRecords();
+    return () => { cancelled = true; };
+  }, []);
 
   function setSectionValue(sectionId: string, path: Path, value: FormValue) {
     setContent((current) => ({
@@ -167,8 +249,79 @@ export function PageEditor({ page, user }: { page: EditablePage; user: SessionUs
     }
   }
 
-  const renderField = (sectionId: string, key: string, value: FormValue, path: Path): ReactNode => {
+  const renderCanonicalNotice = (sectionType: string, key: string, value: FormValue, path: Path): ReactNode => {
+    const type = sectionType.toLowerCase();
+    const rootKey = String(path[0] ?? "").toLowerCase();
+    const isContact = type === "contact-final-statement";
+    const isExperience = type === "experience" && rootKey === "rows";
+    const isTestimonials = rootKey === "testimonials";
+    const isProjects = rootKey === "projects";
+    const publicProjects = canonical.projects.filter(isPublicProject);
+    const featuredProjects = publicProjects.filter((project) => project.featured);
+    const archiveProjects = publicProjects.filter((project) => !project.featured);
+
+    let title = titleFromKey(key);
+    let description = "This content is read-only here and remains available as legacy PageSection data for frontend compatibility.";
+    let href = "";
+    let records: Array<{ id: string; label: string; detail: string }> = [];
+
+    if (isContact) {
+      title = "Contact content";
+      description = "Contact content is managed from Contact Final. This Pages section controls visibility only.";
+      href = "/contact-final";
+    } else if (isExperience) {
+      title = "Experience records";
+      description = "Experience records are managed from Experience. This section controls presentation only.";
+      href = "/experience";
+      records = canonical.experiences.map((experience) => ({ id: experience.id, label: experience.role, detail: `${experience.company} · ${experience.status}` }));
+    } else if (isTestimonials) {
+      title = "Testimonial records";
+      description = "Testimonials are managed from Testimonials. This section controls presentation only.";
+      href = "/testimonials";
+      records = canonical.testimonials.map((testimonial) => ({ id: testimonial.id, label: testimonial.name, detail: testimonial.status }));
+    } else if (isProjects) {
+      const isFlagship = type === "flagship-products";
+      title = isFlagship ? "Featured projects" : "Project archive";
+      description = isFlagship
+        ? "Projects are managed from Projects. Flagship Products uses published public projects with Featured enabled."
+        : "Projects are managed from Projects. Archive items are automatically determined by Featured status.";
+      href = "/projects";
+      const selectedProjects = isFlagship ? featuredProjects : archiveProjects;
+      records = selectedProjects.map((project) => ({ id: project.id, label: project.title, detail: `${project.status} · ${project.slug}` }));
+    }
+
+    return (
+      <aside className="cms-canonical-readonly cms-field--wide" key={`readonly-${path.join(".")}`} aria-label={`${title} read-only summary`}>
+        <div className="cms-canonical-readonly__header">
+          <div><strong>{title}</strong><span>Read-only</span></div>
+          {href && <a href={href}>Manage in {isContact ? "Contact Final" : title.replace(" records", "")}</a>}
+        </div>
+        <p>{description}</p>
+        {isProjects && !canonical.loading && !canonical.error && (
+          <p className="cms-canonical-readonly__count">
+            {type === "flagship-products" ? `${featuredProjects.length} / 3 selected` : `${archiveProjects.length} archive items`}
+          </p>
+        )}
+        {type === "flagship-products" && featuredProjects.length > 3 && (
+          <p className="cms-canonical-readonly__warning" role="alert">Backend validation conflict: more than 3 published public featured projects exist. Manage the records from Projects; this section will not change them automatically.</p>
+        )}
+        {canonical.loading && <small>Loading canonical records…</small>}
+        {canonical.error && <small>{canonical.error}</small>}
+        {!!records.length && (
+          <ul>
+            {records.slice(0, 8).map((record) => <li key={record.id}><strong>{record.label}</strong><span>{record.detail}</span></li>)}
+          </ul>
+        )}
+        {!canonical.loading && !canonical.error && !records.length && !isContact && <small>No canonical records currently match this section.</small>}
+        {isContact && <small>The legacy content is preserved in PageSection and is not editable from Pages.</small>}
+        {value === null && <span className="cms-visually-hidden">No legacy value</span>}
+      </aside>
+    );
+  };
+
+  const renderField = (sectionId: string, sectionType: string, key: string, value: FormValue, path: Path): ReactNode => {
     if (hiddenKeys.has(key)) return null;
+    if (isCanonicalContentPath(sectionType, path)) return renderCanonicalNotice(sectionType, key, value, path);
 
     if (Array.isArray(value)) {
       const primitiveArray = value.every((item) => typeof item !== "object" || item === null);
@@ -197,8 +350,8 @@ export function PageEditor({ page, user }: { page: EditablePage; user: SessionUs
                   <button type="button" onClick={() => removeSectionValue(sectionId, [...path, index])}><Trash2 size={14} />Remove</button>
                 </header>
                 {isRecord(item)
-                  ? Object.entries(item).map(([childKey, childValue]) => renderField(sectionId, childKey, childValue, [...path, index, childKey]))
-                  : renderField(sectionId, `${key} ${index + 1}`, item, [...path, index])}
+                  ? Object.entries(item).map(([childKey, childValue]) => renderField(sectionId, sectionType, childKey, childValue, [...path, index, childKey]))
+                  : renderField(sectionId, sectionType, `${key} ${index + 1}`, item, [...path, index])}
               </div>
             ))}
           </div>
@@ -214,7 +367,7 @@ export function PageEditor({ page, user }: { page: EditablePage; user: SessionUs
         <fieldset className="cms-form-group cms-field--wide" key={path.join(".")}>
           <legend>{titleFromKey(key)}</legend>
           <div className="cms-nested-form">
-            {Object.entries(value).map(([childKey, childValue]) => renderField(sectionId, childKey, childValue, [...path, childKey]))}
+            {Object.entries(value).map(([childKey, childValue]) => renderField(sectionId, sectionType, childKey, childValue, [...path, childKey]))}
           </div>
         </fieldset>
       );
@@ -287,7 +440,7 @@ export function PageEditor({ page, user }: { page: EditablePage; user: SessionUs
               </header>
               <div className="cms-form-section-label"><span>Section {String(index + 1).padStart(2, "0")}</span><small>Editable content form</small></div>
               <div className="cms-page-form-grid">
-                {Object.entries(content[section.id] ?? {}).map(([key, value]) => renderField(section.id, key, value, [key]))}
+                {Object.entries(content[section.id] ?? {}).map(([key, value]) => renderField(section.id, section.type, key, value, [key]))}
               </div>
             </section>
           ))}

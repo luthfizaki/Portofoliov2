@@ -847,6 +847,21 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 .cms-secondary-action:hover { border-color: var(--overview-purple); background: #faf9ff; }
 .cms-modern-form,
 .cms-modern-page-sections { display: grid; gap: 18px; }
+.cms-canonical-readonly { display: grid; gap: 10px; border: 1px solid #ddd9fb; border-radius: 12px; background: #faf9ff; padding: 16px; color: var(--overview-text); }
+.cms-canonical-readonly__header { display: flex; gap: 14px; align-items: center; justify-content: space-between; }
+.cms-canonical-readonly__header > div { display: flex; gap: 10px; align-items: center; }
+.cms-canonical-readonly__header strong { font-size: 12px; }
+.cms-canonical-readonly__header span { border-radius: 999px; background: #e9e6ff; color: var(--overview-purple); padding: 5px 8px; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.cms-canonical-readonly__header a { color: var(--overview-purple); font-size: 10px; font-weight: 800; text-decoration: none; }
+.cms-canonical-readonly__header a:hover { text-decoration: underline; }
+.cms-canonical-readonly p { margin: 0; color: var(--overview-muted); font-size: 10px; line-height: 1.55; }
+.cms-canonical-readonly__count { color: var(--overview-purple) !important; font-size: 11px !important; font-weight: 800; }
+.cms-canonical-readonly__warning { border-radius: 8px; background: #fff4df; color: #9a5b00 !important; padding: 9px 10px; font-size: 10px !important; font-weight: 700; }
+.cms-canonical-readonly small { color: var(--overview-muted); font-size: 9px; }
+.cms-canonical-readonly ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.cms-canonical-readonly li { display: flex; gap: 10px; justify-content: space-between; border-top: 1px solid #ebe9f7; padding-top: 7px; font-size: 10px; }
+.cms-canonical-readonly li strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cms-canonical-readonly li span { color: var(--overview-muted); font-size: 9px; text-align: right; }
 .cms-editor-panel { border: 1px solid var(--overview-border); border-radius: 16px; background: #fff; padding: 22px; }
 .cms-editor-panel > header { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; margin-bottom: 22px; border-bottom: 1px solid var(--overview-border); padding-bottom: 18px; }
 .cms-editor-panel > header h2 { margin: 0; color: var(--overview-text); font-size: 17px; }

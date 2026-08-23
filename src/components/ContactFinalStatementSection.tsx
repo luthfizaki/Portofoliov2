@@ -45,12 +45,14 @@ export function ContactFinalStatementSection() {
       aria-labelledby="contact-final-heading"
     >
       <div className="contact-final__frame">
-        <img
-          className="contact-final__ambient-orb"
-          src={contactFinalStatement.ambientOrbUrl}
-          alt=""
-          aria-hidden="true"
-        />
+        {contactFinalStatement.ambientOrbUrl && (
+          <img
+            className="contact-final__ambient-orb"
+            src={contactFinalStatement.ambientOrbUrl}
+            alt=""
+            aria-hidden="true"
+          />
+        )}
         <div className="contact-final__top-rule" />
 
         <header>
@@ -85,7 +87,7 @@ export function ContactFinalStatementSection() {
                 </span>
               </p>
               <div className="contact-final__availability">
-                <img src={contactFinalStatement.availabilityDotUrl} alt="" />
+                {contactFinalStatement.availabilityDotUrl && <img src={contactFinalStatement.availabilityDotUrl} alt="" />}
                 <span>{contactFinalStatement.availabilityLabel}</span>
                 <strong>{contactFinalStatement.availabilityLocation}</strong>
               </div>

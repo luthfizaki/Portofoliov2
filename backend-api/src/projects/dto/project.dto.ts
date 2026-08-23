@@ -21,6 +21,7 @@ export class ProjectFieldsDto {
   @IsOptional() @IsBoolean() nda?: boolean;
   @IsOptional() @IsIn(visibilities) visibility?: (typeof visibilities)[number];
   @IsOptional() @IsIn(statuses) status?: (typeof statuses)[number];
+  @IsOptional() @Type(() => Number) @IsInt() sortOrder?: number;
 }
 
 export class CreateProjectDto extends ProjectFieldsDto {

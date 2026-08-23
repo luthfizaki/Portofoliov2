@@ -6,6 +6,7 @@ import { SkillsService } from "../skills/skills.service";
 import { TestimonialsService } from "../testimonials/testimonials.service";
 
 const MAX_LIMIT = 50;
+const MAX_FEATURED_PROJECTS = 3;
 
 @Injectable()
 export class PublicService {
@@ -34,18 +35,24 @@ export class PublicService {
 
   async projects(pageValue?: string, limitValue?: string, featuredValue?: string) {
     const page = this.positiveInteger(pageValue, 1);
-    const limit = Math.min(this.positiveInteger(limitValue, 12), MAX_LIMIT);
+    const requestedLimit = Math.min(this.positiveInteger(limitValue, 12), MAX_LIMIT);
+    const isFeaturedQuery = featuredValue === "true";
+    const isArchiveQuery = featuredValue === "false";
+    const limit = isFeaturedQuery
+      ? Math.min(requestedLimit, MAX_FEATURED_PROJECTS)
+      : requestedLimit;
     const where: Prisma.ProjectWhereInput = {
       visibility: "PUBLIC",
       status: "PUBLISHED",
       deletedAt: null,
       publishedAt: { lte: new Date() },
-      ...(featuredValue === "true" ? { featured: true } : {}),
+      ...(isFeaturedQuery ? { featured: true } : {}),
+      ...(isArchiveQuery ? { featured: false } : {}),
     };
     const [projects, total] = await this.prisma.$transaction([
       this.prisma.project.findMany({
         where,
-        orderBy: [{ featured: "desc" }, { sortOrder: "asc" }, { publishedAt: "desc" }],
+        orderBy: [{ featured: "desc" }, { sortOrder: "asc" }, { publishedAt: "desc" }, { id: "asc" }],
         skip: (page - 1) * limit,
         take: limit,
         include: {

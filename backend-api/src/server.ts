@@ -29,6 +29,8 @@ function allowedCorsOrigins(config: ConfigService) {
     "http://127.0.0.1:3100",
     "http://localhost:3001",
     "http://127.0.0.1:3001",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
   ].filter((value): value is string => Boolean(value) && value !== "*");
 }
 

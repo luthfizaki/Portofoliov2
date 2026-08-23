@@ -179,7 +179,7 @@ export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: str
             </div>
 
             <div className="case-study__hero-visual">
-              <img src={content.heroVisualUrl} alt={content.heroVisualAlt} />
+              {content.heroVisualUrl && <img src={content.heroVisualUrl} alt={content.heroVisualAlt} />}
             </div>
           </div>
         </div>

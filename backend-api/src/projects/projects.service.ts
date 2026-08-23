@@ -4,6 +4,15 @@ import { PrismaService } from "../database/prisma.service";
 import { CreateProjectDto, ProjectBlockDto, ProjectFieldsDto } from "./dto/project.dto";
 
 const MAX_LIMIT = 100;
+const MAX_PUBLIC_FEATURED_PROJECTS = 3;
+
+type FeaturedProjectState = {
+  featured: boolean;
+  visibility: ProjectVisibility;
+  status: string;
+  deletedAt: Date | null;
+  publishedAt: Date | null;
+};
 
 @Injectable()
 export class ProjectsService {
@@ -65,18 +74,48 @@ export class ProjectsService {
 
   async create(dto: CreateProjectDto) {
     const slug = await this.availableSlug(dto.slug || dto.title);
-    const project = await this.prisma.project.create({
-      data: { ...this.toProjectData(dto), title: dto.title.trim(), slug },
-    });
+    const data = { ...this.toProjectData(dto), title: dto.title.trim(), slug };
+    const project = await this.prisma.$transaction(async (transaction) => {
+      await this.ensureFeaturedCapacity(transaction, {
+        featured: data.featured ?? false,
+        visibility: data.visibility ?? ProjectVisibility.PUBLIC,
+        status: data.status ?? "DRAFT",
+        deletedAt: null,
+        publishedAt: null,
+      });
+      return transaction.project.create({ data });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return { success: true, message: "Project created.", data: project };
   }
 
   async update(id: string, dto: ProjectFieldsDto) {
-    await this.ensureExists(id);
     const data = this.toProjectData(dto);
     if (dto.title !== undefined) data.title = dto.title.trim();
     if (dto.slug !== undefined) data.slug = await this.availableSlug(dto.slug, id);
-    const project = await this.prisma.project.update({ where: { id }, data });
+    const project = await this.prisma.$transaction(async (transaction) => {
+      const current = await transaction.project.findFirst({
+        where: { id, deletedAt: null },
+        select: {
+          id: true,
+          featured: true,
+          visibility: true,
+          status: true,
+          deletedAt: true,
+          publishedAt: true,
+        },
+      });
+      if (!current) throw this.notFound();
+
+      await this.ensureFeaturedCapacity(transaction, {
+        featured: data.featured ?? current.featured,
+        visibility: data.visibility ?? current.visibility,
+        status: data.status ?? current.status,
+        deletedAt: current.deletedAt,
+        publishedAt: current.publishedAt,
+      }, current.id);
+
+      return transaction.project.update({ where: { id }, data });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return { success: true, message: "Project updated.", data: project };
   }
 
@@ -106,8 +145,25 @@ export class ProjectsService {
   }
 
   async publish(id: string) {
-    await this.ensureExists(id);
-    const project = await this.prisma.project.update({ where: { id }, data: { status: "PUBLISHED", publishedAt: new Date(), scheduledAt: null } });
+    const publishedAt = new Date();
+    const project = await this.prisma.$transaction(async (transaction) => {
+      const current = await transaction.project.findFirst({
+        where: { id, deletedAt: null },
+        select: { id: true, featured: true, visibility: true, status: true, deletedAt: true, publishedAt: true },
+      });
+      if (!current) throw this.notFound();
+
+      await this.ensureFeaturedCapacity(transaction, {
+        ...current,
+        status: "PUBLISHED",
+        publishedAt,
+      }, current.id);
+
+      return transaction.project.update({
+        where: { id },
+        data: { status: "PUBLISHED", publishedAt, scheduledAt: null },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return { success: true, message: "Project published.", data: project };
   }
 
@@ -124,21 +180,65 @@ export class ProjectsService {
   }
 
   async restore(id: string) {
-    const project = await this.prisma.project.findUnique({ where: { id } });
-    if (!project || !project.deletedAt) throw this.notFound();
-    const restored = await this.prisma.project.update({ where: { id }, data: { deletedAt: null } });
+    const restored = await this.prisma.$transaction(async (transaction) => {
+      const project = await transaction.project.findUnique({ where: { id } });
+      if (!project || !project.deletedAt) throw this.notFound();
+
+      await this.ensureFeaturedCapacity(transaction, {
+        ...project,
+        deletedAt: null,
+      }, project.id);
+
+      return transaction.project.update({ where: { id }, data: { deletedAt: null } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return { success: true, message: "Project restored.", data: restored };
   }
 
   private toProjectData(dto: ProjectFieldsDto): Prisma.ProjectUncheckedCreateInput {
     const data: Prisma.ProjectUncheckedCreateInput = {} as Prisma.ProjectUncheckedCreateInput;
-    const fields: Array<keyof ProjectFieldsDto> = ["excerpt", "description", "client", "industry", "year", "role", "duration", "platform", "services", "tools", "featured", "nda", "status"];
+    const fields: Array<keyof ProjectFieldsDto> = ["excerpt", "description", "client", "industry", "year", "role", "duration", "platform", "services", "tools", "featured", "nda", "status", "sortOrder"];
     for (const field of fields) {
       const value = dto[field];
       if (value !== undefined) Object.assign(data, { [field]: value });
     }
     if (dto.visibility !== undefined) data.visibility = dto.visibility as ProjectVisibility;
     return data;
+  }
+
+  private async ensureFeaturedCapacity(
+    transaction: Prisma.TransactionClient,
+    candidate: FeaturedProjectState,
+    currentId?: string,
+  ) {
+    if (!this.isPublicFeatured(candidate)) return;
+
+    const activeFeaturedCount = await transaction.project.count({
+      where: {
+        featured: true,
+        visibility: ProjectVisibility.PUBLIC,
+        status: "PUBLISHED",
+        deletedAt: null,
+        publishedAt: { lte: new Date() },
+        ...(currentId ? { id: { not: currentId } } : {}),
+      },
+    });
+
+    if (activeFeaturedCount >= MAX_PUBLIC_FEATURED_PROJECTS) {
+      throw new ConflictException({
+        success: false,
+        code: "FEATURED_PROJECT_LIMIT",
+        message: "A maximum of 3 published public featured projects is allowed.",
+      });
+    }
+  }
+
+  private isPublicFeatured(project: FeaturedProjectState) {
+    return project.featured
+      && project.visibility === ProjectVisibility.PUBLIC
+      && project.status === "PUBLISHED"
+      && project.deletedAt === null
+      && project.publishedAt !== null
+      && project.publishedAt <= new Date();
   }
 
   private async ensureExists(id: string) {

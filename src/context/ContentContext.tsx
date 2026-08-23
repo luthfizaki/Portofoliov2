@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode
 } from "react";
@@ -171,6 +172,10 @@ interface PublicContentResponse<T> {
 interface PublicProjectsResponse {
   success: boolean;
   data: PublicProject[];
+}
+
+interface PublicExperienceResponse {
+  rows?: unknown;
 }
 
 interface PublicProjectBlock {
@@ -364,6 +369,43 @@ const ContentContext = createContext<ContentValue>({
 const allowLocalDefaults = import.meta.env.DEV;
 const flagshipProjectLimit = 3;
 
+const emptyExperience: ExperienceContent = {
+  ...(defaultExperience as ExperienceContent),
+  rows: []
+};
+
+const emptyFlagshipProducts: FlagshipProductsContent = {
+  ...(defaultFlagshipProducts as FlagshipProductsContent),
+  projects: []
+};
+
+const emptyProjectArchive: ProjectArchiveContent = {
+  ...(defaultProjectArchive as ProjectArchiveContent),
+  projects: []
+};
+
+const emptyTestimonials: CollaborationTestimonialsContent = {
+  ...(defaultCollaborationTestimonials as CollaborationTestimonialsContent),
+  testimonials: []
+};
+
+const emptyContactFinalStatement: ContactFinalStatementContent = {
+  sectionNumber: "",
+  sectionLabel: "",
+  headlineLines: [],
+  intro: "",
+  availabilityLabel: "",
+  availabilityLocation: "",
+  availabilityDotUrl: "",
+  ambientOrbUrl: "",
+  links: [],
+  openToLabel: "",
+  openTo: "",
+  copyright: "",
+  footerStatement: "",
+  backToTopLabel: ""
+};
+
 export function useContent() {
   return useContext(ContentContext);
 }
@@ -372,8 +414,100 @@ function stringValue(value: unknown, fallback = "") {
   return typeof value === "string" ? value : fallback;
 }
 
+function stringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function mapExperienceRows(value: unknown): ExperienceContent["rows"] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    return [{
+      year: stringValue(row.year),
+      role: stringValue(row.role),
+      company: stringValue(row.company),
+      contribution: stringValue(row.contribution),
+      tags: stringArray(row.tags),
+      featured: typeof row.featured === "boolean" ? row.featured : undefined
+    }];
+  });
+}
+
+function testimonialAccent(value: unknown): CollaborationTestimonialsContent["testimonials"][number]["accent"] {
+  return value === "purple" || value === "green" ? value : "blue";
+}
+
+function mapTestimonials(value: unknown): CollaborationTestimonialsContent["testimonials"] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item, index) => {
+    if (!item || typeof item !== "object") return [];
+    const testimonial = item as Record<string, unknown>;
+    const name = stringValue(testimonial.name, "Anonymous");
+    const tags = stringArray(testimonial.tags);
+    return [{
+      number: stringValue(testimonial.number, String(index + 1).padStart(2, "0")),
+      featured: testimonial.featured === true,
+      featuredLabel: stringValue(testimonial.featuredLabel) || undefined,
+      quote: stringValue(testimonial.quote),
+      name,
+      initial: stringValue(testimonial.initial, name.slice(0, 1).toUpperCase()),
+      role: stringValue(testimonial.role),
+      company: stringValue(testimonial.company),
+      avatarUrl: stringValue(testimonial.avatarUrl, "/testimonial-raka-avatar.svg"),
+      accent: testimonialAccent(testimonial.accent),
+      tags: tags.length ? tags : undefined
+    }];
+  });
+}
+
+function contactAccent(value: unknown): ContactFinalStatementContent["links"][number]["accent"] {
+  return value === "light" || value === "green" ? value : "blue";
+}
+
+function mapContactContent(value: unknown): ContactFinalStatementContent {
+  if (!value || typeof value !== "object") return emptyContactFinalStatement;
+  const content = value as Record<string, unknown>;
+  const links = Array.isArray(content.links)
+    ? content.links.flatMap((item, index) => {
+      if (!item || typeof item !== "object") return [];
+      const link = item as Record<string, unknown>;
+      return [{
+        number: stringValue(link.number, String(index + 1).padStart(2, "0")),
+        label: stringValue(link.label),
+        title: stringValue(link.title),
+        detail: stringValue(link.detail),
+        url: stringValue(link.url),
+        accent: contactAccent(link.accent),
+        openInNewTab: link.openInNewTab === true
+      }];
+    })
+    : [];
+
+  return {
+    sectionNumber: stringValue(content.sectionNumber),
+    sectionLabel: stringValue(content.sectionLabel),
+    headlineLines: stringArray(content.headlineLines),
+    intro: stringValue(content.intro),
+    availabilityLabel: stringValue(content.availabilityLabel),
+    availabilityLocation: stringValue(content.availabilityLocation),
+    availabilityDotUrl: stringValue(content.availabilityDotUrl),
+    ambientOrbUrl: stringValue(content.ambientOrbUrl),
+    links,
+    openToLabel: stringValue(content.openToLabel),
+    openTo: stringValue(content.openTo),
+    copyright: stringValue(content.copyright),
+    footerStatement: stringValue(content.footerStatement),
+    backToTopLabel: stringValue(content.backToTopLabel)
+  };
+}
+
 function projectBlock(project: PublicProject, type: string) {
-  return project.blocks.find((block) => block.type === type)?.content ?? {};
+  return project.blocks?.find((block) => block.type === type)?.content ?? {};
 }
 
 function splitTitleLines(title: string) {
@@ -385,18 +519,19 @@ function caseStudyUrl(slug: string) {
 }
 
 function projectCategory(project: PublicProject) {
-  return project.categories[0]?.name ?? project.industry ?? "Uncategorized";
+  return project.categories?.[0]?.name ?? project.industry ?? "Uncategorized";
 }
 
 function projectOutput(project: PublicProject, archiveBlock: Record<string, unknown>) {
+  const services = Array.isArray(project.services) ? project.services : [];
   return stringValue(
     archiveBlock.output,
-    project.platform || project.services.join(" / ") || project.excerpt || project.description || ""
+    project.platform || services.join(" / ") || project.excerpt || project.description || ""
   );
 }
 
 function mapFlagshipProjects(projects: PublicProject[]): FlagshipProductsContent["projects"] {
-  return projects.slice(0, flagshipProjectLimit).map((project, index) => {
+  return projects.map((project, index) => {
     const flagshipBlock = projectBlock(project, "flagship");
     const heroBlock = projectBlock(project, "HERO");
     const linkLabel = stringValue(flagshipBlock.linkLabel, "VIEW CASE STUDY");
@@ -415,7 +550,7 @@ function mapFlagshipProjects(projects: PublicProject[]): FlagshipProductsContent
       description: project.description || project.excerpt || "",
       role: project.role || "",
       platform: project.platform || "",
-      scope: stringValue(flagshipBlock.scope, project.services.join(" / ")),
+      scope: stringValue(flagshipBlock.scope, Array.isArray(project.services) ? project.services.join(" / ") : ""),
       linkLabel,
       linkUrl: caseStudyUrl(project.slug),
       visualUrl,
@@ -454,14 +589,22 @@ async function fetchPublicProjects(query: string) {
   return body.data;
 }
 
+async function fetchPublicContent<T>(path: string) {
+  const response = await fetch(`${publicApiUrl}${path}`);
+  if (!response.ok) throw new Error(`${path} is unavailable.`);
+  const body = await response.json() as PublicContentResponse<T>;
+  if (!body.success || !body.data) throw new Error(`${path} returned an invalid response.`);
+  return body.data;
+}
+
 export function ContentProvider({ children }: { children: ReactNode }) {
   const [hero, setHero] = useState<HeroContent | null>(null);
   const [about, setAbout] = useState<AboutContent>(defaultAbout);
-  const [experience, setExperience] = useState<ExperienceContent>(defaultExperience);
+  const [experience, setExperience] = useState<ExperienceContent>(allowLocalDefaults ? defaultExperience as ExperienceContent : emptyExperience);
   const [selectedWork, setSelectedWork] = useState<SelectedWorkContent>(defaultSelectedWork);
   const [flagshipProducts, setFlagshipProducts] =
     useState<FlagshipProductsContent>(
-      defaultFlagshipProducts as FlagshipProductsContent
+      allowLocalDefaults ? defaultFlagshipProducts as FlagshipProductsContent : emptyFlagshipProducts
     );
   const [creativePractice, setCreativePractice] =
     useState<CreativePracticeContent>(
@@ -469,7 +612,7 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     );
   const [projectArchive, setProjectArchive] =
     useState<ProjectArchiveContent>(
-      defaultProjectArchive as ProjectArchiveContent
+      allowLocalDefaults ? defaultProjectArchive as ProjectArchiveContent : emptyProjectArchive
     );
   const [skills, setSkills] = useState<SkillsContent>(
     defaultSkills as SkillsContent
@@ -483,85 +626,106 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     );
   const [collaborationTestimonials, setCollaborationTestimonials] =
     useState<CollaborationTestimonialsContent>(
-      defaultCollaborationTestimonials as CollaborationTestimonialsContent
+      allowLocalDefaults ? defaultCollaborationTestimonials as CollaborationTestimonialsContent : emptyTestimonials
     );
   const [contactFinalStatement, setContactFinalStatement] =
     useState<ContactFinalStatementContent>(
-      defaultContactFinalStatement as ContactFinalStatementContent
+      allowLocalDefaults ? defaultContactFinalStatement as ContactFinalStatementContent : emptyContactFinalStatement
     );
   const [visibleSections, setVisibleSections] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const requestSequence = useRef(0);
 
   const fetchContent = useCallback(async () => {
+    const requestId = ++requestSequence.current;
     setLoading(true);
+    let nextExperience = allowLocalDefaults ? defaultExperience as ExperienceContent : emptyExperience;
+    let nextFlagshipProducts = allowLocalDefaults ? defaultFlagshipProducts as FlagshipProductsContent : emptyFlagshipProducts;
+    let nextProjectArchive = allowLocalDefaults ? defaultProjectArchive as ProjectArchiveContent : emptyProjectArchive;
+    let nextTestimonials = allowLocalDefaults ? defaultCollaborationTestimonials as CollaborationTestimonialsContent : emptyTestimonials;
+    let nextContact = allowLocalDefaults ? defaultContactFinalStatement as ContactFinalStatementContent : emptyContactFinalStatement;
+
     try {
       const pageResponse = await fetch(`${publicApiUrl}/api/v1/public/pages/home`);
-      if (!pageResponse.ok) throw new Error("Public content API is unavailable.");
+      if (!pageResponse.ok) throw new Error("Public page API is unavailable.");
       const page = await pageResponse.json() as PublicPageResponse;
-      if (!page.success) throw new Error("Public content response is invalid.");
-      const sectionTypes = page.data.sections.map((section) => section.type);
-      setVisibleSections(sectionTypes);
-      let nextFlagshipProducts = flagshipProducts;
-      let nextProjectArchive = projectArchive;
+      if (!page.success || !Array.isArray(page.data?.sections)) throw new Error("Public page response is invalid.");
+      if (requestId !== requestSequence.current) return;
 
+      setVisibleSections(page.data.sections.map((section) => section.type));
       for (const section of page.data.sections) {
         switch (section.type) {
           case "hero": setHero(section.content as HeroContent); break;
           case "about": setAbout(section.content as AboutContent); break;
-          case "experience": setExperience(section.content as ExperienceContent); break;
+          case "experience": nextExperience = { ...(section.content as ExperienceContent), rows: [] }; break;
           case "selected-work": setSelectedWork(section.content as SelectedWorkContent); break;
-          case "flagship-products": nextFlagshipProducts = section.content as FlagshipProductsContent; break;
+          case "flagship-products": nextFlagshipProducts = { ...(section.content as FlagshipProductsContent), projects: [] }; break;
           case "creative-practice": setCreativePractice(section.content as CreativePracticeContent); break;
-          case "project-archive": nextProjectArchive = section.content as ProjectArchiveContent; break;
+          case "project-archive": nextProjectArchive = { ...(section.content as ProjectArchiveContent), projects: [] }; break;
           case "skills": setSkills(section.content as SkillsContent); break;
           case "how-i-work": setHowIWork(section.content as HowIWorkContent); break;
           case "capabilities-tools": setCapabilitiesTools(section.content as CapabilitiesToolsContent); break;
-          case "collaboration-testimonials": setCollaborationTestimonials(section.content as CollaborationTestimonialsContent); break;
-          case "contact-final-statement": setContactFinalStatement(section.content as ContactFinalStatementContent); break;
+          case "collaboration-testimonials": nextTestimonials = { ...(section.content as CollaborationTestimonialsContent), testimonials: [] }; break;
+          case "contact-final-statement": nextContact = mapContactContent(section.content); break;
         }
       }
-
-      try {
-        const [featuredProjects, archiveProjects] = await Promise.all([
-          fetchPublicProjects(`?featured=true&limit=${flagshipProjectLimit}`),
-          fetchPublicProjects("?limit=50")
-        ]);
-        setFlagshipProducts({
-          ...nextFlagshipProducts,
-          projects: mapFlagshipProjects(featuredProjects)
-        });
-        setProjectArchive({
-          ...nextProjectArchive,
-          projects: mapArchiveProjects(archiveProjects)
-        });
-      } catch (error) {
-        console.error("Public project API unavailable; project sections will render empty.", error);
-        setFlagshipProducts({ ...nextFlagshipProducts, projects: [] });
-        setProjectArchive({ ...nextProjectArchive, projects: [] });
-      }
-
-      const skillsResponse = await fetch(`${publicApiUrl}/api/v1/public/skills`);
-      if (skillsResponse.ok) {
-        const skillsBody = await skillsResponse.json() as PublicContentResponse<SkillsContent>;
-        if (skillsBody.success) setSkills(skillsBody.data);
-      }
-
-      const testimonialsResponse = await fetch(`${publicApiUrl}/api/v1/public/testimonials`);
-      if (testimonialsResponse.ok) {
-        const testimonialsBody = await testimonialsResponse.json() as PublicContentResponse<CollaborationTestimonialsContent>;
-        if (testimonialsBody.success) setCollaborationTestimonials(testimonialsBody.data);
-      }
-
     } catch (error) {
-      if (allowLocalDefaults) {
-        console.warn("Public content API unavailable; local defaults are active.", error);
-      } else {
-        console.error("Public content API unavailable; production local defaults are disabled.", error);
-        setVisibleSections([]);
-      }
-    } finally {
-      setLoading(false);
+      console.error("Public page API unavailable; editorial configuration is using safe defaults.", error);
+      if (!allowLocalDefaults) setVisibleSections(null);
     }
+
+    if (requestId !== requestSequence.current) return;
+    setExperience(nextExperience);
+    setFlagshipProducts(nextFlagshipProducts);
+    setProjectArchive(nextProjectArchive);
+    setCollaborationTestimonials(nextTestimonials);
+    setContactFinalStatement(nextContact);
+
+    const [experienceResult, featuredResult, archiveResult, skillsResult, testimonialsResult] = await Promise.allSettled([
+      fetchPublicContent<PublicExperienceResponse>("/api/v1/public/experiences"),
+      fetchPublicProjects(`?featured=true&limit=${flagshipProjectLimit}`),
+      fetchPublicProjects("?featured=false"),
+      fetchPublicContent<SkillsContent>("/api/v1/public/skills"),
+      fetchPublicContent<CollaborationTestimonialsContent>("/api/v1/public/testimonials")
+    ]);
+
+    if (requestId !== requestSequence.current) return;
+
+    if (experienceResult.status === "fulfilled") {
+      setExperience({ ...nextExperience, rows: mapExperienceRows(experienceResult.value.rows) });
+    } else {
+      console.error("Public Experience API unavailable; Experience will render empty.", experienceResult.reason);
+      setExperience({ ...nextExperience, rows: allowLocalDefaults ? (defaultExperience as ExperienceContent).rows : [] });
+    }
+
+    if (featuredResult.status === "fulfilled") {
+      setFlagshipProducts({ ...nextFlagshipProducts, projects: mapFlagshipProjects(featuredResult.value) });
+    } else {
+      console.error("Public featured Projects API unavailable; Flagship Products will render empty.", featuredResult.reason);
+      setFlagshipProducts({ ...nextFlagshipProducts, projects: [] });
+    }
+
+    if (archiveResult.status === "fulfilled") {
+      setProjectArchive({ ...nextProjectArchive, projects: mapArchiveProjects(archiveResult.value) });
+    } else {
+      console.error("Public archive Projects API unavailable; Project Archive will render empty.", archiveResult.reason);
+      setProjectArchive({ ...nextProjectArchive, projects: [] });
+    }
+
+    if (skillsResult.status === "fulfilled") setSkills(skillsResult.value);
+    else console.error("Public Skills API unavailable; Skills will keep its current safe content.", skillsResult.reason);
+
+    if (testimonialsResult.status === "fulfilled") {
+      setCollaborationTestimonials({
+        ...nextTestimonials,
+        testimonials: mapTestimonials(testimonialsResult.value.testimonials)
+      });
+    } else {
+      console.error("Public Testimonials API unavailable; Testimonials will render empty.", testimonialsResult.reason);
+      setCollaborationTestimonials({ ...nextTestimonials, testimonials: [] });
+    }
+
+    setLoading(false);
   }, []);
 
   useEffect(() => {
