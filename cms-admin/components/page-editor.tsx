@@ -66,6 +66,15 @@ function isCanonicalContentPath(sectionType: string, path: Path) {
   return false;
 }
 
+function protectedLegacyEntityArrayKey(sectionType: string) {
+  return ({
+    experience: "rows",
+    "flagship-products": "projects",
+    "project-archive": "projects",
+    "collaboration-testimonials": "testimonials",
+  } as Record<string, string | undefined>)[sectionType.toLowerCase()];
+}
+
 function isPublicProject(project: CanonicalProject) {
   return project.visibility === "PUBLIC"
     && project.status === "PUBLISHED"
@@ -229,11 +238,17 @@ export function PageEditor({ page, user }: { page: EditablePage; user: SessionUs
     setMessage("");
     setSaving(sectionId);
     try {
+      const sectionType = page.sections.find((section) => section.id === sectionId)?.type ?? "";
+      const protectedKey = protectedLegacyEntityArrayKey(sectionType);
+      const sectionContent = content[sectionId];
+      const editableContent = protectedKey && sectionContent
+        ? Object.fromEntries(Object.entries(sectionContent).filter(([key]) => key !== protectedKey))
+        : sectionContent;
       const response = await fetch(`${apiUrl}/api/v1/admin/pages/sections/${sectionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ content: content[sectionId] }),
+        body: JSON.stringify({ content: editableContent }),
       });
       const body = await response.json().catch(() => null);
       if (!response.ok || !body?.success) {
