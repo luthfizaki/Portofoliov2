@@ -9,7 +9,7 @@
     "dev": "concurrently -n web,api -c blue,green \"vite --host 0.0.0.0 --port 3100\" \"node server/index.js\"",
     "dev:web": "vite --host 0.0.0.0 --port 3100",
     "dev:api": "node server/index.js",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/prerender-seo.mjs",
     "start": "node server/index.js",
     "dev:cms": "pnpm --filter @portfoliov2/cms-admin dev",
     "dev:api:v1": "pnpm --filter @portfoliov2/backend-api start:dev",

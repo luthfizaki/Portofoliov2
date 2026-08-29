@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+Disallow: /api/
+Disallow: /admin/
+Disallow: /login
+
+Sitemap: https://lyzastudio.my.id/sitemap.xml

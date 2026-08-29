@@ -13,6 +13,7 @@ import { SelerisCaseStudyPage } from "./components/SelerisCaseStudyPage";
 import { SkillsSection } from "./components/SkillsSection";
 import { SmoothScroll } from "./components/SmoothScroll";
 import { ContentProvider, useContent } from "./context/ContentContext";
+import { SEO, getCaseStudySeo } from "./components/SEO";
 
 const caseStudyAliases: Record<string, string> = {
   "seleris-superapp": "seleris-superapp",
@@ -53,9 +54,11 @@ export default function App() {
   if (caseStudyMatch) {
     const requestedSlug = caseStudyMatch[1];
     const canonicalSlug = caseStudyAliases[requestedSlug] ?? requestedSlug;
+    const seo = getCaseStudySeo(canonicalSlug);
 
     return (
       <SmoothScroll>
+        {seo && <SEO {...seo} />}
         <SelerisCaseStudyPage slug={canonicalSlug} />
       </SmoothScroll>
     );
@@ -63,6 +66,12 @@ export default function App() {
 
   return (
     <ContentProvider>
+      <SEO
+        title="Luthfi Arzaki | UI/UX Designer"
+        description="Luthfi Arzaki, UI/UX Designer and Product Designer crafting thoughtful digital products and experiences."
+        canonical="https://lyzastudio.my.id/"
+        type="website"
+      />
       <HomeSections />
     </ContentProvider>
   );
