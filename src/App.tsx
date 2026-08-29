@@ -14,6 +14,13 @@ import { SkillsSection } from "./components/SkillsSection";
 import { SmoothScroll } from "./components/SmoothScroll";
 import { ContentProvider, useContent } from "./context/ContentContext";
 
+const caseStudyAliases: Record<string, string> = {
+  "seleris-superapp": "seleris-superapp",
+  noteit: "noteit-automatic-note-taking-app",
+  flexa: "flexa-asia-flexible-accident-insurance",
+  takaful: "takaful-mobile-app"
+};
+
 function HomeSections() {
   const { loading, visibleSections } = useContent();
   const isVisible = (type: string) =>
@@ -44,9 +51,12 @@ export default function App() {
   const caseStudyMatch = normalizedPath.match(/^\/case-study\/([^/]+)$/);
 
   if (caseStudyMatch) {
+    const requestedSlug = caseStudyMatch[1];
+    const canonicalSlug = caseStudyAliases[requestedSlug] ?? requestedSlug;
+
     return (
       <SmoothScroll>
-        <SelerisCaseStudyPage slug={caseStudyMatch[1]} />
+        <SelerisCaseStudyPage slug={canonicalSlug} />
       </SmoothScroll>
     );
   }
