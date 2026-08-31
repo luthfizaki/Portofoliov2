@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from "@nestjs/common
 import { Prisma, ProjectVisibility } from "@prisma/client";
 import { PrismaService } from "../database/prisma.service";
 import { CreateProjectDto, ProjectBlockDto, ProjectFieldsDto } from "./dto/project.dto";
+import { buildProjectBlockPersistencePlan } from "./project-block-persistence";
 
 const MAX_LIMIT = 100;
 const MAX_PUBLIC_FEATURED_PROJECTS = 3;
@@ -122,15 +123,30 @@ export class ProjectsService {
   async replaceBlocks(id: string, blocks: ProjectBlockDto[]) {
     await this.ensureExists(id);
     const updated = await this.prisma.$transaction(async (transaction) => {
-      await transaction.projectBlock.deleteMany({ where: { projectId: id } });
-      if (blocks.length) {
+      const existing = await transaction.projectBlock.findMany({ where: { projectId: id } });
+      const plan = buildProjectBlockPersistencePlan(existing, blocks);
+
+      for (const update of plan.updates) {
+        await transaction.projectBlock.update({
+          where: { id: update.id },
+          data: {
+            title: update.block.title ?? null,
+            content: update.block.content as Prisma.InputJsonValue,
+            sortOrder: update.block.sortOrder ?? 0,
+            isVisible: update.block.isVisible ?? true,
+            layoutVariant: update.block.layoutVariant ?? null,
+          },
+        });
+      }
+
+      if (plan.creates.length) {
         await transaction.projectBlock.createMany({
-          data: blocks.map((block, index) => ({
+          data: plan.creates.map((block) => ({
             projectId: id,
             type: block.type,
             title: block.title ?? null,
             content: block.content as Prisma.InputJsonValue,
-            sortOrder: block.sortOrder ?? index,
+            sortOrder: block.sortOrder ?? 0,
             isVisible: block.isVisible ?? true,
             layoutVariant: block.layoutVariant ?? null,
           })),
