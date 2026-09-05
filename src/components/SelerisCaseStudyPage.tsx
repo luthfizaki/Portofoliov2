@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { publicApiUrl } from "../lib/apiBase";
+import { CaseFeature, CaseFeatureImage } from "./CaseFeature";
 
 const fallbackDeliverables = [
   "MOBILE FLOWS",
@@ -73,6 +74,45 @@ function galleryValue(value: unknown) {
   }).filter((item) => item.image);
 }
 
+function titleLinesValue(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.length > 0) : [];
+}
+
+function caseFeatureImagesValue(record: Record<string, unknown>): CaseFeatureImage[] {
+  if (Array.isArray(record.images)) {
+    const images = record.images.reduce<CaseFeatureImage[]>((items, item) => {
+      if (!item || typeof item !== "object") return items;
+      const image = item as Record<string, unknown>;
+      const url = stringValue(image.url).trim();
+      if (url) items.push({ url, alt: stringValue(image.alt).trim() || undefined });
+      return items;
+    }, []);
+    if (images.length) return images;
+  }
+
+  const legacyUrl = [record.image, record.imageUrl, record.visualUrl]
+    .map((value) => stringValue(value).trim())
+    .filter(Boolean);
+  const legacyAlt = stringValue(record.visualAlt, stringValue(record.imageAlt, stringValue(record.alt))).trim() || undefined;
+  return Array.from(new Set(legacyUrl)).map((url) => ({ url, alt: legacyAlt }));
+}
+
+function caseFeatureValue(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const images = caseFeatureImagesValue(record);
+  if (!images.length) return null;
+  return {
+    eyebrow: stringValue(record.eyebrow),
+    titleLines: titleLinesValue(record.titleLines),
+    description: stringValue(record.description),
+    platform: stringValue(record.platform),
+    scope: stringValue(record.scope),
+    images,
+    layout: stringValue(record.layout) === "media-left" ? "media-left" as const : "media-right" as const,
+  };
+}
+
 export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: string }) {
   const [project, setProject] = useState<PublicProject | null>(null);
   const [loading, setLoading] = useState(true);
@@ -109,6 +149,7 @@ export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: str
     const legacyHero = block(project, "HERO");
     const summary = block(project, "CASE_SUMMARY");
     const gallery = block(project, "CASE_GALLERY");
+    const feature = caseFeatureValue(block(project, "CASE_FEATURE"));
     const next = block(project, "CASE_NEXT");
     return {
       title: project?.title ?? fallbackValue("SELERIS SUPERAPP"),
@@ -129,6 +170,7 @@ export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: str
       galleryIntro: stringValue(gallery.intro, fallbackValue("This section is fully repeatable. Each uploaded item only needs an image, optional caption, and layout type: full width or half width.")),
       galleryNote: stringValue(gallery.note, fallbackValue("CMS BLOCKS / FULL WIDTH / TWO COLUMN / OPTIONAL CAPTION")),
       galleryItems: galleryValue(gallery.items),
+      feature,
       nextLabel: stringValue(next.label, fallbackValue("NEXT CASE STUDY")),
       nextTitle: stringValue(next.title, fallbackValue("NOTEIT - AUTOMATIC NOTE-TAKING APP")),
       nextText: stringValue(next.text, fallbackValue("A focused mobile UI project for capturing and organizing important information.")),
@@ -157,7 +199,7 @@ export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: str
   }
 
   return (
-    <main className="case-study" aria-labelledby="case-study-title">
+    <main className={`case-study case-study--${slug}`} aria-labelledby="case-study-title">
       <section className="case-study__hero">
         <div className="case-study__ambient case-study__ambient--hero" />
         <div className="case-study__container">
@@ -220,6 +262,8 @@ export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: str
           <p className="case-study__cms-note">{content.galleryNote}</p>
         </div>
       </section>
+
+      {content.feature && <CaseFeature {...content.feature} />}
 
       <section className="case-study__next">
         <div className="case-study__ambient case-study__ambient--next" />

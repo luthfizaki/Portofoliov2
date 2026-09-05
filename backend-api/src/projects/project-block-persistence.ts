@@ -2,6 +2,7 @@ export const MANAGED_PROJECT_BLOCK_TYPES = new Set([
   "CASE_HERO",
   "CASE_SUMMARY",
   "CASE_GALLERY",
+  "CASE_FEATURE",
   "CASE_NEXT",
 ]);
 

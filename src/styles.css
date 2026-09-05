@@ -7204,6 +7204,127 @@ body.contact-final-is-visible .portfolio-main-nav button span {
   object-fit: cover;
 }
 
+.case-study--noteit-automatic-note-taking-app .case-study__gallery-grid figure,
+.case-study--noteit-automatic-note-taking-app .case-study__gallery-grid figure.is-wide {
+  aspect-ratio: auto;
+}
+
+.case-study--noteit-automatic-note-taking-app .case-study__gallery-grid img {
+  height: auto;
+  object-fit: contain;
+}
+
+.case-feature {
+  color: var(--case-ink);
+  background: var(--case-paper);
+}
+
+.case-feature__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
+  align-items: start;
+  gap: 110px;
+  padding: 80px 0 104px;
+}
+
+.case-feature.is-media-left .case-feature__copy {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.case-feature.is-media-left .case-feature__visual-shell {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.case-feature__copy {
+  padding-top: 36px;
+}
+
+.case-feature__eyebrow,
+.case-feature__details dt {
+  color: var(--case-blue);
+  font-size: 9px;
+  line-height: 15px;
+  letter-spacing: 0.9px;
+}
+
+.case-feature__copy h2 {
+  margin: 20px 0 0;
+  color: var(--case-ink);
+  font-size: 62px;
+  line-height: 66px;
+}
+
+.case-feature__copy h2 span {
+  display: block;
+}
+
+.case-feature__description {
+  max-width: 480px;
+  margin: 25px 0 0;
+  color: var(--case-copy);
+  font-family: "Epilogue", sans-serif;
+  font-size: 15px;
+  line-height: 28px;
+}
+
+.case-feature__details {
+  display: grid;
+  gap: 16px;
+  margin: 32px 0 0;
+}
+
+.case-feature__details > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.case-feature__details dd {
+  margin: -2px 0 0;
+  color: var(--case-ink);
+  font-family: "Epilogue", sans-serif;
+  font-size: 12px;
+  line-height: 19px;
+}
+
+.case-feature__visual-shell {
+  justify-self: end;
+  width: min(100%, 460px);
+}
+
+.case-feature__images {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.case-feature__images--1 {
+  grid-template-columns: 1fr;
+}
+
+.case-feature__images--3 .case-feature__image:last-child {
+  grid-column: 1 / -1;
+}
+
+.case-feature__image {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--case-rule);
+  border-radius: 24px;
+  background: #ede9e1;
+}
+
+.case-feature__image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
 .case-study__cms-note {
   margin: 85px 0 0;
   color: var(--case-copy);
@@ -7369,6 +7490,21 @@ body.contact-final-is-visible .portfolio-main-nav button span {
     line-height: 46px;
     white-space: normal;
   }
+
+  .case-feature__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+    gap: 64px;
+    padding: 64px 0 80px;
+  }
+
+  .case-feature__copy {
+    padding-top: 20px;
+  }
+
+  .case-feature__copy h2 {
+    font-size: 54px;
+    line-height: 58px;
+  }
 }
 
 @media (max-width: 760px) {
@@ -7510,6 +7646,54 @@ body.contact-final-is-visible .portfolio-main-nav button span {
     margin-top: 12px;
     font-size: 13px;
     line-height: 23px;
+  }
+
+  .case-feature__grid,
+  .case-feature.is-media-left .case-feature__copy,
+  .case-feature.is-media-left .case-feature__visual-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .case-feature__grid {
+    gap: 40px;
+    padding: 40px 0 64px;
+  }
+
+  .case-feature.is-media-left .case-feature__copy,
+  .case-feature.is-media-left .case-feature__visual-shell {
+    grid-column: 1;
+  }
+
+  .case-feature.is-media-left .case-feature__copy,
+  .case-feature__copy {
+    grid-row: 1;
+    padding-top: 0;
+  }
+
+  .case-feature.is-media-left .case-feature__visual-shell,
+  .case-feature__visual-shell {
+    grid-row: 2;
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .case-feature__images {
+    grid-template-columns: 1fr;
+  }
+
+  .case-feature__images--3 .case-feature__image:last-child {
+    grid-column: auto;
+  }
+
+  .case-feature__copy h2 {
+    font-size: 46px;
+    line-height: 50px;
+  }
+
+  .case-feature__description {
+    margin-top: 20px;
+    font-size: 14px;
+    line-height: 25px;
   }
 }
 

@@ -8,10 +8,13 @@ import { apiUrl } from "../lib/api";
 import { CmsWorkspace } from "./cms-workspace";
 
 type GalleryItem = { number: string; title: string; type: string; image: string; className: string };
+type CaseFeatureImage = { url: string; alt: string };
+type CaseFeature = { eyebrow: string; titleLines: string; description: string; platform: string; scope: string; images: CaseFeatureImage[]; layout: "media-left" | "media-right" };
 type CaseStudyState = {
   eyebrow: string; lede: string; heroVisualUrl: string; heroVisualAlt: string;
   summaryHeading: string; summaryIntro: string; overview: string; contribution: string; challenge: string; deliverables: string;
   galleryHeading: string; galleryIntro: string; galleryNote: string; gallery: GalleryItem[];
+  feature: CaseFeature | null;
   nextLabel: string; nextTitle: string; nextText: string; nextUrl: string;
 };
 
@@ -50,6 +53,7 @@ const defaultCaseStudy: CaseStudyState = {
     { number: "02", title: "RESULT EXPERIENCE", type: "DASHBOARD", image: "/case-studies/seleris/gallery-result.png", className: "" },
     { number: "03", title: "BUSINESS OPERATIONS", type: "DASHBOARD", image: "/case-studies/seleris/gallery-business.png", className: "" },
   ],
+  feature: null,
   nextLabel: "NEXT CASE STUDY",
   nextTitle: "NOTEIT — AUTOMATIC NOTE-TAKING APP",
   nextText: "A focused mobile UI project for capturing and organizing important information.",
@@ -76,6 +80,31 @@ function galleryValue(value: unknown) {
       className: stringValue(record.className),
     };
   });
+}
+
+function caseFeatureValue(value: unknown): CaseFeature | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const images = Array.isArray(record.images)
+    ? record.images.map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const image = item as Record<string, unknown>;
+      const url = stringValue(image.url).trim();
+      return url ? { url, alt: stringValue(image.alt).trim() } : null;
+    }).filter((item): item is CaseFeatureImage => item !== null)
+    : [];
+  const normalizedImages = images.length
+    ? images
+    : Array.from(new Set([record.image, record.imageUrl, record.visualUrl].map((item) => stringValue(item).trim()).filter(Boolean))).map((url) => ({ url, alt: stringValue(record.visualAlt, stringValue(record.imageAlt, stringValue(record.alt))).trim() }));
+  return {
+    eyebrow: stringValue(record.eyebrow),
+    titleLines: Array.isArray(record.titleLines) ? record.titleLines.filter((item): item is string => typeof item === "string").join("\n") : stringValue(record.titleLines),
+    description: stringValue(record.description),
+    platform: stringValue(record.platform),
+    scope: stringValue(record.scope),
+    images: normalizedImages,
+    layout: stringValue(record.layout) === "media-left" ? "media-left" : "media-right",
+  };
 }
 
 function initialState(project?: EditableProject): FormState {
@@ -108,6 +137,7 @@ function initialCaseStudy(project?: EditableProject): CaseStudyState {
     galleryIntro: stringValue(gallery.intro, defaultCaseStudy.galleryIntro),
     galleryNote: stringValue(gallery.note, defaultCaseStudy.galleryNote),
     gallery: galleryValue(gallery.items),
+    feature: caseFeatureValue(block(project, "CASE_FEATURE")),
     nextLabel: stringValue(next.label, defaultCaseStudy.nextLabel),
     nextTitle: stringValue(next.title, defaultCaseStudy.nextTitle),
     nextText: stringValue(next.text, defaultCaseStudy.nextText),
@@ -128,13 +158,15 @@ function asPayload(state: FormState) {
 
 function blocksPayload(state: CaseStudyState) {
   const deliverables = state.deliverables.split(",").map((item) => item.trim()).filter(Boolean);
+  const blocks = [
+    { type: "CASE_HERO", title: "Case Study Hero", sortOrder: 0, isVisible: true, content: { eyebrow: state.eyebrow, lede: state.lede, heroVisualUrl: state.heroVisualUrl, heroVisualAlt: state.heroVisualAlt } },
+    { type: "CASE_SUMMARY", title: "Project Summary", sortOrder: 1, isVisible: true, content: { heading: state.summaryHeading, intro: state.summaryIntro, overview: state.overview, contribution: state.contribution, challenge: state.challenge, deliverables } },
+    { type: "CASE_GALLERY", title: "UI Gallery", sortOrder: 2, isVisible: true, content: { heading: state.galleryHeading, intro: state.galleryIntro, note: state.galleryNote, items: state.gallery } },
+    ...(state.feature ? [{ type: "CASE_FEATURE", title: "Product Feature", sortOrder: 3, isVisible: true, content: { ...state.feature, titleLines: state.feature.titleLines.split("\n").map((line) => line.trim()).filter(Boolean) } }] : []),
+    { type: "CASE_NEXT", title: "Next Case Study", sortOrder: state.feature ? 4 : 3, isVisible: true, content: { label: state.nextLabel, title: state.nextTitle, text: state.nextText, url: state.nextUrl } },
+  ];
   return {
-    blocks: [
-      { type: "CASE_HERO", title: "Case Study Hero", sortOrder: 0, isVisible: true, content: { eyebrow: state.eyebrow, lede: state.lede, heroVisualUrl: state.heroVisualUrl, heroVisualAlt: state.heroVisualAlt } },
-      { type: "CASE_SUMMARY", title: "Project Summary", sortOrder: 1, isVisible: true, content: { heading: state.summaryHeading, intro: state.summaryIntro, overview: state.overview, contribution: state.contribution, challenge: state.challenge, deliverables } },
-      { type: "CASE_GALLERY", title: "UI Gallery", sortOrder: 2, isVisible: true, content: { heading: state.galleryHeading, intro: state.galleryIntro, note: state.galleryNote, items: state.gallery } },
-      { type: "CASE_NEXT", title: "Next Case Study", sortOrder: 3, isVisible: true, content: { label: state.nextLabel, title: state.nextTitle, text: state.nextText, url: state.nextUrl } },
-    ],
+    blocks,
   };
 }
 
@@ -163,8 +195,19 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
     }));
   }
 
-  async function uploadImage(target: "hero" | number, file: File) {
-    setUploading(String(target));
+  function setFeature(index: number, patch: Partial<CaseFeatureImage>) {
+    setCaseStudy((current) => current.feature ? {
+      ...current,
+      feature: {
+        ...current.feature,
+        images: current.feature.images.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item),
+      },
+    } : current);
+  }
+
+  async function uploadImage(target: "hero" | number | ["feature", number], file: File) {
+    const uploadKey = Array.isArray(target) ? `feature-${target[1]}` : String(target);
+    setUploading(uploadKey);
     setError("");
     try {
       const formData = new FormData();
@@ -173,6 +216,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
       const body = await response.json().catch(() => null);
       if (!response.ok || !body?.success) { setError(body?.message ?? "Image could not be uploaded."); return; }
       if (target === "hero") setCaseField("heroVisualUrl", body.data.url);
+      else if (Array.isArray(target)) setFeature(target[1], { url: body.data.url });
       else setGallery(target, { image: body.data.url });
     } catch {
       setError("Upload service is unavailable.");
@@ -285,6 +329,27 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
                   <button className="cms-gallery-remove" type="button" onClick={() => setCaseField("gallery", caseStudy.gallery.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={14} />Remove</button>
                 </div>
               ))}
+            </div>
+
+            <div className="cms-gallery-editor cms-case-feature-editor">
+              <header><strong>Product Feature</strong>{!caseStudy.feature && <button type="button" onClick={() => setCaseField("feature", { eyebrow: "PRODUCT EXPERIENCE", titleLines: "FINANCIAL\nVISIBILITY.", description: "", platform: "Mobile application", scope: "Financial dashboard / Personal finance", images: [], layout: "media-right" })}><Plus size={14} />Add Feature</button>}</header>
+              {caseStudy.feature && <div className="cms-form-grid">
+                <label className="cms-field">Eyebrow<input value={caseStudy.feature.eyebrow} onChange={(event) => setCaseField("feature", { ...caseStudy.feature!, eyebrow: event.target.value })} /></label>
+                <label className="cms-field">Layout<select value={caseStudy.feature.layout} onChange={(event) => setCaseField("feature", { ...caseStudy.feature!, layout: event.target.value as CaseFeature["layout"] })}><option value="media-right">Media right</option><option value="media-left">Media left</option></select></label>
+                <label className="cms-field cms-field--wide">Heading<textarea value={caseStudy.feature.titleLines} onChange={(event) => setCaseField("feature", { ...caseStudy.feature!, titleLines: event.target.value })} rows={2} /></label>
+                <label className="cms-field cms-field--wide">Description<textarea value={caseStudy.feature.description} onChange={(event) => setCaseField("feature", { ...caseStudy.feature!, description: event.target.value })} rows={4} /></label>
+                <label className="cms-field">Platform<input value={caseStudy.feature.platform} onChange={(event) => setCaseField("feature", { ...caseStudy.feature!, platform: event.target.value })} /></label>
+                <label className="cms-field">Scope<input value={caseStudy.feature.scope} onChange={(event) => setCaseField("feature", { ...caseStudy.feature!, scope: event.target.value })} /></label>
+                <div className="cms-field cms-field--wide cms-feature-images-field">
+                  <div className="cms-feature-images-field__header"><span>Images</span><button type="button" onClick={() => setCaseField("feature", { ...caseStudy.feature!, images: [...caseStudy.feature!.images, { url: "", alt: "" }] })}><Plus size={14} />Add Image</button></div>
+                  {caseStudy.feature.images.map((image, index) => <div className="cms-feature-image-item" key={`${index}-${image.url}`}>
+                    <label className="cms-field">Image URL<input value={image.url} onChange={(event) => setFeature(index, { url: event.target.value })} /></label>
+                    <label className="cms-field">Alt Text<input value={image.alt} onChange={(event) => setFeature(index, { alt: event.target.value })} /></label>
+                    <label className="cms-upload-field"><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(["feature", index], file); }} /><span><ImagePlus size={15} />{uploading === `feature-${index}` ? "Uploading" : "Upload image"}</span></label>
+                    <button className="cms-gallery-remove" type="button" onClick={() => setCaseField("feature", { ...caseStudy.feature!, images: caseStudy.feature!.images.filter((_, imageIndex) => imageIndex !== index) })}><Trash2 size={14} />Remove</button>
+                  </div>)}
+                </div>
+              </div>}
             </div>
 
             <div className="cms-form-grid">
