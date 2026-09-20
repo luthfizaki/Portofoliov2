@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 export type CaseFeatureImage = {
   url: string;
   alt?: string;
@@ -16,15 +18,16 @@ export type CaseFeatureProps = {
 export function CaseFeature({ eyebrow, titleLines, description, platform, scope, images, layout }: CaseFeatureProps) {
   const isMediaLeft = layout === "media-left";
   const imageCount = Math.min(images.length, 4);
+  const headingId = `case-feature-heading-${useId().replace(/:/g, "")}`;
 
   return (
-    <section className={`case-feature ${isMediaLeft ? "is-media-left" : "is-media-right"}`} aria-labelledby="case-feature-heading">
+    <section className={`case-feature ${isMediaLeft ? "is-media-left" : "is-media-right"}`} aria-labelledby={headingId}>
       <div className="case-study__container">
         <div className="case-study__rule" />
         <div className="case-feature__grid">
           <div className="case-feature__copy">
             <span className="case-feature__eyebrow">{eyebrow}</span>
-            <h2 id="case-feature-heading">{titleLines.map((line) => <span key={line}>{line}</span>)}</h2>
+            <h2 id={headingId}>{titleLines.map((line) => <span key={line}>{line}</span>)}</h2>
             <p className="case-feature__description">{description}</p>
             <dl className="case-feature__details">
               <div><dt>PLATFORM</dt><dd>{platform}</dd></div>
