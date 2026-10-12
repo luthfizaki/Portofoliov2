@@ -1,5 +1,8 @@
 import { Controller, Post, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
+import { UserRole } from "@prisma/client";
+import { Roles } from "../auth/roles.decorator";
+import { RolesGuard } from "../auth/roles.guard";
 import { SessionGuard } from "../auth/session.guard";
 import { MediaService } from "./media.service";
 
@@ -11,11 +14,12 @@ type UploadedMediaFile = {
 };
 
 @Controller("admin/media")
-@UseGuards(SessionGuard)
+@UseGuards(SessionGuard, RolesGuard)
 export class MediaController {
   constructor(private readonly media: MediaService) {}
 
   @Post("upload")
+  @Roles(UserRole.SUPER_ADMIN, UserRole.EDITOR)
   @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 10 * 1024 * 1024 } }))
   upload(@UploadedFile() file: UploadedMediaFile) {
     return this.media.store(file);

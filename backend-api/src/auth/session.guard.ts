@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
 import type { Request } from "express";
 import { AuthService } from "./auth.service";
 
-type AuthenticatedRequest = Request & { user?: Awaited<ReturnType<AuthService["getCurrentUser"]>> };
+export type AuthenticatedRequest = Request & { user?: Awaited<ReturnType<AuthService["getCurrentUser"]>> };
 
 @Injectable()
 export class SessionGuard implements CanActivate {
