@@ -18,13 +18,17 @@ type CaseStudyState = {
   nextLabel: string; nextTitle: string; nextText: string; nextUrl: string;
 };
 
-type ProjectBlock = { id: string; type: string; title: string | null; content: Record<string, unknown>; sortOrder: number; isVisible: boolean; layoutVariant: string | null };
+type ProjectBlock = {
+  id: string; type: string; title: string | null; content: Record<string, unknown>; sortOrder: number; isVisible: boolean;
+  layoutVariant: string | null; desktop: boolean; tablet: boolean; mobile: boolean; background: string | null; animation: string | null;
+};
 
 export type EditableProject = {
   id: string; title: string; slug: string; excerpt: string | null; description: string | null;
   client: string | null; industry: string | null; year: number | null; role: string | null;
   duration: string | null; platform: string | null; services: string[]; tools: string[];
   featured: boolean; nda: boolean; visibility: "PUBLIC" | "UNLISTED" | "PASSWORD_PROTECTED" | "PRIVATE"; status: string;
+  updatedAt: string;
   blocks?: ProjectBlock[];
 };
 
@@ -156,14 +160,47 @@ function asPayload(state: FormState) {
   };
 }
 
-function blocksPayload(state: CaseStudyState) {
+function recordValue(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function blockPayload(project: EditableProject | undefined, type: string, defaults: { title: string; sortOrder: number }, content: Record<string, unknown>) {
+  const current = project?.blocks?.find((item) => item.type === type);
+  return {
+    type,
+    title: current?.title ?? defaults.title,
+    sortOrder: current?.sortOrder ?? defaults.sortOrder,
+    isVisible: current?.isVisible ?? true,
+    ...(current?.layoutVariant ? { layoutVariant: current.layoutVariant } : {}),
+    desktop: current?.desktop ?? true,
+    tablet: current?.tablet ?? true,
+    mobile: current?.mobile ?? true,
+    ...(current?.background ? { background: current.background } : {}),
+    ...(current?.animation ? { animation: current.animation } : {}),
+    content,
+  };
+}
+
+function blocksPayload(project: EditableProject | undefined, state: CaseStudyState) {
   const deliverables = state.deliverables.split(",").map((item) => item.trim()).filter(Boolean);
+  const hero = recordValue(block(project, "CASE_HERO"));
+  const summary = recordValue(block(project, "CASE_SUMMARY"));
+  const gallery = recordValue(block(project, "CASE_GALLERY"));
+  const next = recordValue(block(project, "CASE_NEXT"));
+  const feature = recordValue(block(project, "CASE_FEATURE"));
+  const existingFeature = project?.blocks?.some((item) => item.type === "CASE_FEATURE") ?? false;
+  const galleryItems = Array.isArray(gallery.items) ? gallery.items : [];
   const blocks = [
-    { type: "CASE_HERO", title: "Case Study Hero", sortOrder: 0, isVisible: true, content: { eyebrow: state.eyebrow, lede: state.lede, heroVisualUrl: state.heroVisualUrl, heroVisualAlt: state.heroVisualAlt } },
-    { type: "CASE_SUMMARY", title: "Project Summary", sortOrder: 1, isVisible: true, content: { heading: state.summaryHeading, intro: state.summaryIntro, overview: state.overview, contribution: state.contribution, challenge: state.challenge, deliverables } },
-    { type: "CASE_GALLERY", title: "UI Gallery", sortOrder: 2, isVisible: true, content: { heading: state.galleryHeading, intro: state.galleryIntro, note: state.galleryNote, items: state.gallery } },
-    ...(state.feature ? [{ type: "CASE_FEATURE", title: "Product Feature", sortOrder: 3, isVisible: true, content: { ...state.feature, titleLines: state.feature.titleLines.split("\n").map((line) => line.trim()).filter(Boolean) } }] : []),
-    { type: "CASE_NEXT", title: "Next Case Study", sortOrder: state.feature ? 4 : 3, isVisible: true, content: { label: state.nextLabel, title: state.nextTitle, text: state.nextText, url: state.nextUrl } },
+    blockPayload(project, "CASE_HERO", { title: "Case Study Hero", sortOrder: 0 }, { ...hero, eyebrow: state.eyebrow, lede: state.lede, heroVisualUrl: state.heroVisualUrl, heroVisualAlt: state.heroVisualAlt }),
+    blockPayload(project, "CASE_SUMMARY", { title: "Project Summary", sortOrder: 1 }, { ...summary, heading: state.summaryHeading, intro: state.summaryIntro, overview: state.overview, contribution: state.contribution, challenge: state.challenge, deliverables }),
+    blockPayload(project, "CASE_GALLERY", { title: "UI Gallery", sortOrder: 2 }, { ...gallery, heading: state.galleryHeading, intro: state.galleryIntro, note: state.galleryNote, items: state.gallery.map((item, index) => ({ ...recordValue(galleryItems[index]), ...item })) }),
+    ...(state.feature ? [blockPayload(project, "CASE_FEATURE", { title: "Product Feature", sortOrder: 3 }, {
+      ...feature,
+      ...state.feature,
+      titleLines: state.feature.titleLines.split("\n").map((line) => line.trim()).filter(Boolean),
+      images: state.feature.images.map((image, index) => ({ ...recordValue(Array.isArray(feature.images) ? feature.images[index] : undefined), ...image })),
+    })] : existingFeature ? [{ type: "CASE_FEATURE", content: {}, delete: true }] : []),
+    blockPayload(project, "CASE_NEXT", { title: "Next Case Study", sortOrder: state.feature ? 4 : 3 }, { ...next, label: state.nextLabel, title: state.nextTitle, text: state.nextText, url: state.nextUrl }),
   ];
   return {
     blocks,
@@ -177,6 +214,8 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [savedProject, setSavedProject] = useState(project);
+  const [stale, setStale] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [uploading, setUploading] = useState("");
 
@@ -226,23 +265,21 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setError(""); setNotice(""); setSaving(true);
+    event.preventDefault(); setError(""); setNotice(""); setStale(false); setSaving(true);
     try {
-      const response = await fetch(`${apiUrl}/api/v1/admin/projects${project ? `/${project.id}` : ""}`, {
-        method: project ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(asPayload(form)),
+      const response = await fetch(`${apiUrl}/api/v1/admin/projects${savedProject ? `/${savedProject.id}` : ""}`, {
+        method: savedProject ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ ...asPayload(form), blocks: blocksPayload(savedProject, caseStudy), ...(savedProject?.updatedAt ? { expectedUpdatedAt: savedProject.updatedAt } : {}) }),
       });
       const body = await response.json().catch(() => null);
-      if (!response.ok || !body?.success) { setError(body?.message ?? "Project could not be saved."); return; }
-      const projectId = project?.id ?? body.data.id;
-      const blocksResponse = await fetch(`${apiUrl}/api/v1/admin/projects/${projectId}/blocks`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(blocksPayload(caseStudy)),
-      });
-      const blocksBody = await blocksResponse.json().catch(() => null);
-      if (!blocksResponse.ok || !blocksBody?.success) { setError(blocksBody?.message ?? "Case study detail could not be saved."); return; }
-      if (!project) { router.replace(`/projects/${projectId}`); return; }
+      if (!response.ok || !body?.success) {
+        if (response.status === 409 && body?.code === "STALE_PROJECT") setStale(true);
+        setError(body?.message ?? "Project could not be saved.");
+        return;
+      }
+      const projectId = savedProject?.id ?? body.data.id;
+      setSavedProject(body.data);
+      if (!savedProject) { router.replace(`/projects/${projectId}`); return; }
       setNotice("Project and case study detail saved successfully."); router.refresh();
     } catch { setError("CMS API is unavailable."); } finally { setSaving(false); }
   }
@@ -332,7 +369,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
             </div>
 
             <div className="cms-gallery-editor cms-case-feature-editor">
-              <header><strong>Product Feature</strong>{!caseStudy.feature && <button type="button" onClick={() => setCaseField("feature", { eyebrow: "PRODUCT EXPERIENCE", titleLines: "FINANCIAL\nVISIBILITY.", description: "", platform: "Mobile application", scope: "Financial dashboard / Personal finance", images: [], layout: "media-right" })}><Plus size={14} />Add Feature</button>}</header>
+              <header><strong>Product Feature</strong>{!caseStudy.feature ? <button type="button" onClick={() => setCaseField("feature", { eyebrow: "PRODUCT EXPERIENCE", titleLines: "FINANCIAL\nVISIBILITY.", description: "", platform: "Mobile application", scope: "Financial dashboard / Personal finance", images: [], layout: "media-right" })}><Plus size={14} />Add Feature</button> : <button type="button" onClick={() => setCaseField("feature", null)}><Trash2 size={14} />Remove Feature</button>}</header>
               {caseStudy.feature && <div className="cms-form-grid">
                 <label className="cms-field">Eyebrow<input value={caseStudy.feature.eyebrow} onChange={(event) => setCaseField("feature", { ...caseStudy.feature!, eyebrow: event.target.value })} /></label>
                 <label className="cms-field">Layout<select value={caseStudy.feature.layout} onChange={(event) => setCaseField("feature", { ...caseStudy.feature!, layout: event.target.value as CaseFeature["layout"] })}><option value="media-right">Media right</option><option value="media-left">Media left</option></select></label>
@@ -361,7 +398,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
             </div>
           </section>
 
-          {error && <p className="cms-form-message cms-form-message--error" role="alert">{error}</p>}
+          {error && <p className="cms-form-message cms-form-message--error" role="alert">{error}{stale && <> <button type="button" onClick={() => window.location.reload()}>Reload latest project</button></>}</p>}
           {notice && <p className="cms-form-message">{notice}</p>}
         </form>
 

@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsArray, IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, Length, MaxLength, ValidateNested } from "class-validator";
+import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Length, MaxLength, ValidateNested } from "class-validator";
 
 const statuses = ["DRAFT", "IN_REVIEW", "SCHEDULED", "PUBLISHED", "ARCHIVED"] as const;
 const visibilities = ["PUBLIC", "UNLISTED", "PASSWORD_PROTECTED", "PRIVATE"] as const;
@@ -22,6 +22,10 @@ export class ProjectFieldsDto {
   @IsOptional() @IsIn(visibilities) visibility?: (typeof visibilities)[number];
   @IsOptional() @IsIn(statuses) status?: (typeof statuses)[number];
   @IsOptional() @Type(() => Number) @IsInt() sortOrder?: number;
+  /** Optional optimistic-lock value captured when the CMS editor loaded the project. */
+  @IsOptional() @IsDateString() expectedUpdatedAt?: string;
+  /** Additive combined-save payload. Omission preserves metadata-only behavior. */
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ProjectBlockDto) blocks?: ProjectBlockDto[];
 }
 
 export class CreateProjectDto extends ProjectFieldsDto {
@@ -35,6 +39,13 @@ export class ProjectBlockDto {
   @IsOptional() @Type(() => Number) @IsInt() sortOrder?: number;
   @IsOptional() @IsBoolean() isVisible?: boolean;
   @IsOptional() @IsString() layoutVariant?: string;
+  @IsOptional() @IsBoolean() desktop?: boolean;
+  @IsOptional() @IsBoolean() tablet?: boolean;
+  @IsOptional() @IsBoolean() mobile?: boolean;
+  @IsOptional() @IsString() background?: string;
+  @IsOptional() @IsString() animation?: string;
+  /** Only CASE_FEATURE supports explicit deletion; omission always preserves it. */
+  @IsOptional() @IsBoolean() delete?: boolean;
 }
 
 export class ReplaceProjectBlocksDto {

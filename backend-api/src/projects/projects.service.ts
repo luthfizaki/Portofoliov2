@@ -1,8 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, ProjectVisibility } from "@prisma/client";
 import { PrismaService } from "../database/prisma.service";
 import { CreateProjectDto, ProjectBlockDto, ProjectFieldsDto } from "./dto/project.dto";
-import { buildProjectBlockPersistencePlan } from "./project-block-persistence";
+import { buildProjectBlockPersistencePlan, mergeManagedBlockContent, projectBlockPersistenceConflicts, type ExistingProjectBlock } from "./project-block-persistence";
 
 const MAX_LIMIT = 100;
 const MAX_PUBLIC_FEATURED_PROJECTS = 3;
@@ -74,9 +74,10 @@ export class ProjectsService {
   }
 
   async create(dto: CreateProjectDto) {
-    const slug = await this.availableSlug(dto.slug || dto.title);
-    const data = { ...this.toProjectData(dto), title: dto.title.trim(), slug };
+    this.validateBlockInputs(dto.blocks);
     const project = await this.prisma.$transaction(async (transaction) => {
+      const slug = await this.availableSlug(dto.slug || dto.title, undefined, transaction);
+      const data = { ...this.toProjectData(dto), title: dto.title.trim(), slug };
       await this.ensureFeaturedCapacity(transaction, {
         featured: data.featured ?? false,
         visibility: data.visibility ?? ProjectVisibility.PUBLIC,
@@ -84,15 +85,19 @@ export class ProjectsService {
         deletedAt: null,
         publishedAt: null,
       });
-      return transaction.project.create({ data });
+      const created = await transaction.project.create({ data });
+      if (dto.blocks !== undefined) await this.applyManagedBlockChanges(transaction, created.id, [], dto.blocks);
+      return dto.blocks === undefined
+        ? created
+        : transaction.project.findUniqueOrThrow({ where: { id: created.id }, include: { blocks: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }, categories: { include: { category: true } } } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return { success: true, message: "Project created.", data: project };
   }
 
   async update(id: string, dto: ProjectFieldsDto) {
+    this.validateBlockInputs(dto.blocks);
     const data = this.toProjectData(dto);
     if (dto.title !== undefined) data.title = dto.title.trim();
-    if (dto.slug !== undefined) data.slug = await this.availableSlug(dto.slug, id);
     const project = await this.prisma.$transaction(async (transaction) => {
       const current = await transaction.project.findFirst({
         where: { id, deletedAt: null },
@@ -103,9 +108,12 @@ export class ProjectsService {
           status: true,
           deletedAt: true,
           publishedAt: true,
+          updatedAt: true,
         },
       });
       if (!current) throw this.notFound();
+      this.assertExpectedUpdatedAt(dto.expectedUpdatedAt, current.updatedAt);
+      if (dto.slug !== undefined) data.slug = await this.availableSlug(dto.slug, id, transaction);
 
       await this.ensureFeaturedCapacity(transaction, {
         featured: data.featured ?? current.featured,
@@ -115,48 +123,24 @@ export class ProjectsService {
         publishedAt: current.publishedAt,
       }, current.id);
 
-      return transaction.project.update({ where: { id }, data });
+      if (dto.blocks !== undefined) await this.applyManagedBlockChanges(transaction, id, await this.findProjectBlocks(transaction, id), dto.blocks);
+      const updated = await transaction.project.update({ where: { id }, data: { ...data, ...(dto.blocks !== undefined ? { updatedAt: new Date() } : {}) } });
+      return dto.blocks === undefined
+        ? updated
+        : transaction.project.findUniqueOrThrow({ where: { id }, include: { blocks: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }, categories: { include: { category: true } } } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return { success: true, message: "Project updated.", data: project };
   }
 
   async replaceBlocks(id: string, blocks: ProjectBlockDto[]) {
-    await this.ensureExists(id);
+    this.validateBlockInputs(blocks);
     const updated = await this.prisma.$transaction(async (transaction) => {
-      const existing = await transaction.projectBlock.findMany({ where: { projectId: id } });
-      const plan = buildProjectBlockPersistencePlan(existing, blocks);
-
-      for (const update of plan.updates) {
-        await transaction.projectBlock.update({
-          where: { id: update.id },
-          data: {
-            title: update.block.title ?? null,
-            content: update.block.content as Prisma.InputJsonValue,
-            sortOrder: update.block.sortOrder ?? 0,
-            isVisible: update.block.isVisible ?? true,
-            layoutVariant: update.block.layoutVariant ?? null,
-          },
-        });
-      }
-
-      if (plan.creates.length) {
-        await transaction.projectBlock.createMany({
-          data: plan.creates.map((block) => ({
-            projectId: id,
-            type: block.type,
-            title: block.title ?? null,
-            content: block.content as Prisma.InputJsonValue,
-            sortOrder: block.sortOrder ?? 0,
-            isVisible: block.isVisible ?? true,
-            layoutVariant: block.layoutVariant ?? null,
-          })),
-        });
-      }
-      return transaction.project.findUnique({
-        where: { id },
-        include: { blocks: { orderBy: { sortOrder: "asc" } }, categories: { include: { category: true } } },
-      });
-    });
+      const current = await transaction.project.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
+      if (!current) throw this.notFound();
+      await this.applyManagedBlockChanges(transaction, id, await this.findProjectBlocks(transaction, id), blocks);
+      await transaction.project.update({ where: { id }, data: { updatedAt: new Date() } });
+      return transaction.project.findUniqueOrThrow({ where: { id }, include: { blocks: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }, categories: { include: { category: true } } } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return { success: true, message: "Project detail blocks saved.", data: updated };
   }
 
@@ -262,10 +246,10 @@ export class ProjectsService {
     if (!project) throw this.notFound();
   }
 
-  private async availableSlug(value: string, currentId?: string) {
+  private async availableSlug(value: string, currentId?: string, client: Pick<Prisma.TransactionClient, "project"> = this.prisma) {
     const slug = this.slugify(value);
     if (!slug) throw new ConflictException({ success: false, code: "INVALID_SLUG", message: "Project slug is invalid." });
-    const existing = await this.prisma.project.findUnique({ where: { slug }, select: { id: true } });
+    const existing = await client.project.findUnique({ where: { slug }, select: { id: true } });
     if (existing && existing.id !== currentId) throw new ConflictException({ success: false, code: "SLUG_EXISTS", message: "Project slug already exists." });
     return slug;
   }
@@ -276,5 +260,94 @@ export class ProjectsService {
 
   private notFound() {
     return new NotFoundException({ success: false, code: "NOT_FOUND", message: "Project was not found." });
+  }
+
+  private assertExpectedUpdatedAt(expected: string | undefined, actual: Date) {
+    if (!expected) return;
+    const expectedAt = new Date(expected);
+    if (Number.isNaN(expectedAt.getTime()) || expectedAt.getTime() !== actual.getTime()) {
+      throw new ConflictException({ success: false, code: "STALE_PROJECT", message: "This project was changed by another editor. Reload the latest version before saving." });
+    }
+  }
+
+  private validateBlockInputs(blocks: ProjectBlockDto[] | undefined) {
+    if (blocks === undefined) return;
+    const conflicts = projectBlockPersistenceConflicts([], blocks);
+    if (conflicts.duplicateIncomingTypes.length) {
+      throw new ConflictException({ success: false, code: "DUPLICATE_BLOCK_TYPE", message: "Each managed case-study block type may be submitted only once." });
+    }
+    for (const block of blocks) {
+      if (block.delete && block.type !== "CASE_FEATURE") {
+        throw new BadRequestException({ success: false, code: "BLOCK_DELETE_NOT_SUPPORTED", message: "Only CASE_FEATURE supports explicit deletion." });
+      }
+      if (!block.delete) {
+        const content = block.content as unknown;
+        if (!content || typeof content !== "object" || Array.isArray(content) || Object.keys(content).length === 0) {
+          throw new BadRequestException({ success: false, code: "EMPTY_BLOCK_CONTENT", message: "Managed block content must be a non-empty object." });
+        }
+      }
+    }
+  }
+
+  private async findProjectBlocks(transaction: Prisma.TransactionClient, projectId: string): Promise<ExistingProjectBlock[]> {
+    return transaction.projectBlock.findMany({ where: { projectId }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }] });
+  }
+
+  private async applyManagedBlockChanges(
+    transaction: Prisma.TransactionClient,
+    projectId: string,
+    existing: ExistingProjectBlock[],
+    blocks: ProjectBlockDto[],
+  ) {
+    const conflicts = projectBlockPersistenceConflicts(existing, blocks);
+    if (conflicts.duplicateIncomingTypes.length) {
+      throw new ConflictException({ success: false, code: "DUPLICATE_BLOCK_TYPE", message: "Each managed case-study block type may be submitted only once." });
+    }
+    if (conflicts.duplicatePersistedTypes.length) {
+      throw new ConflictException({ success: false, code: "DUPLICATE_PERSISTED_BLOCK_TYPE", message: "Project has duplicate managed blocks and cannot be saved safely." });
+    }
+
+    const existingById = new Map(existing.map((block) => [block.id, block]));
+    const plan = buildProjectBlockPersistencePlan(existing, blocks);
+    if (plan.deletes.length) await transaction.projectBlock.deleteMany({ where: { id: { in: plan.deletes } } });
+
+    for (const update of plan.updates) {
+      const current = existingById.get(update.id);
+      if (!current) continue;
+      await transaction.projectBlock.update({
+        where: { id: update.id },
+        data: {
+          title: update.block.title ?? current.title,
+          content: mergeManagedBlockContent(current.content, update.block.content) as Prisma.InputJsonValue,
+          sortOrder: update.block.sortOrder ?? current.sortOrder,
+          isVisible: update.block.isVisible ?? current.isVisible,
+          layoutVariant: update.block.layoutVariant ?? current.layoutVariant,
+          desktop: update.block.desktop ?? current.desktop,
+          tablet: update.block.tablet ?? current.tablet,
+          mobile: update.block.mobile ?? current.mobile,
+          background: update.block.background ?? current.background,
+          animation: update.block.animation ?? current.animation,
+        },
+      });
+    }
+
+    if (plan.creates.length) {
+      await transaction.projectBlock.createMany({
+        data: plan.creates.map((block) => ({
+          projectId,
+          type: block.type,
+          title: block.title ?? null,
+          content: block.content as Prisma.InputJsonValue,
+          sortOrder: block.sortOrder ?? 0,
+          isVisible: block.isVisible ?? true,
+          desktop: block.desktop ?? true,
+          tablet: block.tablet ?? true,
+          mobile: block.mobile ?? true,
+          layoutVariant: block.layoutVariant ?? null,
+          background: block.background ?? null,
+          animation: block.animation ?? null,
+        })),
+      });
+    }
   }
 }

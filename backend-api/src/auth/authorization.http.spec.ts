@@ -84,6 +84,33 @@ const media = {
   }),
 };
 
+// tsx does not emit TypeScript's design:paramtypes metadata. These test-only
+// subclasses inject the mocked services explicitly while inheriting the real
+// controller routes, role metadata, and handler implementations.
+class HttpProjectsController extends ProjectsController {
+  constructor() { super(projects as never); }
+}
+
+class HttpPagesController extends PagesController {
+  constructor() { super(pages as never); }
+}
+
+class HttpExperiencesController extends ExperiencesController {
+  constructor() { super(experiences as never); }
+}
+
+class HttpSkillsController extends SkillsController {
+  constructor() { super(skills as never); }
+}
+
+class HttpTestimonialsController extends TestimonialsController {
+  constructor() { super(testimonials as never); }
+}
+
+class HttpMediaController extends MediaController {
+  constructor() { super(media as never); }
+}
+
 let app: INestApplication;
 let baseUrl: string;
 let tokens: Record<TestRole, string>;
@@ -93,17 +120,24 @@ before(async () => {
   const prisma = { user: { findUnique: async ({ where }: { where: { id: string } }) => usersById.get(where.id) } };
   const tokenService = new TokenService(config as never);
   const authService = new AuthService(prisma as never, tokenService);
-  const sessionGuard = new SessionGuard(authService);
-  const rolesGuard = new RolesGuard(new Reflector());
   const testingModule = Test.createTestingModule({
-    controllers: [ProjectsController, PagesController, ExperiencesController, SkillsController, TestimonialsController, MediaController],
+    controllers: [HttpProjectsController, HttpPagesController, HttpExperiencesController, HttpSkillsController, HttpTestimonialsController, HttpMediaController],
     providers: [
       { provide: ConfigService, useValue: config },
       { provide: PrismaService, useValue: prisma },
       { provide: TokenService, useValue: tokenService },
       { provide: AuthService, useValue: authService },
-      { provide: SessionGuard, useValue: sessionGuard },
-      { provide: RolesGuard, useValue: rolesGuard },
+      {
+        provide: SessionGuard,
+        useFactory: (auth: AuthService) => new SessionGuard(auth),
+        inject: [AuthService],
+      },
+      {
+        provide: RolesGuard,
+        useFactory: (reflector: Reflector) => new RolesGuard(reflector),
+        inject: [Reflector],
+      },
+      { provide: Reflector, useValue: new Reflector() },
       { provide: ProjectsService, useValue: projects },
       { provide: PagesService, useValue: pages },
       { provide: ExperiencesService, useValue: experiences },
@@ -111,7 +145,23 @@ before(async () => {
       { provide: TestimonialsService, useValue: testimonials },
       { provide: MediaService, useValue: media },
     ],
-  });
+  })
+    .overrideGuard(SessionGuard)
+    .useValue(new SessionGuard(authService))
+    .overrideGuard(RolesGuard)
+    .useValue(new RolesGuard(new Reflector()))
+    .overrideProvider(ProjectsService)
+    .useValue(projects)
+    .overrideProvider(PagesService)
+    .useValue(pages)
+    .overrideProvider(ExperiencesService)
+    .useValue(experiences)
+    .overrideProvider(SkillsService)
+    .useValue(skills)
+    .overrideProvider(TestimonialsService)
+    .useValue(testimonials)
+    .overrideProvider(MediaService)
+    .useValue(media);
   const module = await testingModule.compile();
 
   app = module.createNestApplication();
