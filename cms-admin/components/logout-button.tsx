@@ -4,11 +4,12 @@ import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export function LogoutButton() {
+export function LogoutButton({ onNavigate }: { onNavigate?: () => boolean }) {
   const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   async function signOut() {
+    if (onNavigate && !onNavigate()) return;
     setIsSigningOut(true);
     try {
       await fetch("/api/auth/logout", { method: "POST" });

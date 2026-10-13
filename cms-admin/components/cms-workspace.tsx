@@ -49,6 +49,7 @@ export function CmsWorkspace({
   subtitle,
   children,
   headerAction,
+  onNavigate,
 }: {
   user: SessionUser;
   active: string;
@@ -56,19 +57,24 @@ export function CmsWorkspace({
   subtitle: string;
   children: ReactNode;
   headerAction?: ReactNode;
+  onNavigate?: (href: string) => boolean;
 }) {
   const role = user.role.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 
   return (
     <main className="overview-dashboard cms-workspace">
       <aside className="overview-sidebar" aria-label="CMS navigation">
-        <Link className="overview-brand" href="/">
+        <Link className="overview-brand" href="/" onClick={(event) => {
+          if (onNavigate && !onNavigate("/")) event.preventDefault();
+        }}>
           <span className="overview-brand__mark">P</span>
           <span><strong>Portfolio V2 CMS</strong><small>Manage your portfolio</small></span>
         </Link>
         <nav className="overview-nav">
           {cmsNavigation.map(({ icon: IconComponent, label, href, badge }) => (
-            <Link className={active === label ? "is-active" : ""} href={href} key={label}>
+            <Link className={active === label ? "is-active" : ""} href={href} key={label} onClick={(event) => {
+              if (onNavigate && !onNavigate(href)) event.preventDefault();
+            }}>
               <IconComponent size={18} strokeWidth={1.8} />
               <span>{label}</span>
               {badge && <em>{badge}</em>}
@@ -79,9 +85,11 @@ export function CmsWorkspace({
           <div><strong>Storage Used</strong><b>61%</b></div>
           <span><i /></span>
           <small>30.6 GB / 50 GB</small>
-          <Link href="/media">Manage Storage</Link>
+          <Link href="/media" onClick={(event) => {
+            if (onNavigate && !onNavigate("/media")) event.preventDefault();
+          }}>Manage Storage</Link>
         </div>
-        <LogoutButton />
+        <LogoutButton onNavigate={onNavigate ? () => onNavigate("/login") : undefined} />
       </aside>
 
       <section className="overview-main">

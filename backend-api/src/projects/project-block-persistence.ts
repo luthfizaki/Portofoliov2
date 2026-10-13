@@ -47,6 +47,12 @@ export type ProjectBlockPersistenceConflicts = {
   duplicatePersistedTypes: string[];
 };
 
+export type ManagedBlockContentMergeOptions = {
+  /** The combined CMS editor submits these arrays as complete raw-object arrays. */
+  replaceEditorArrays?: boolean;
+  blockType?: string;
+};
+
 function duplicateTypes(blocks: Array<{ type: string }>) {
   const seen = new Set<string>();
   const duplicates = new Set<string>();
@@ -73,23 +79,41 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+const editorArrayPaths: Record<string, Set<string>> = {
+  CASE_GALLERY: new Set(["items"]),
+  CASE_FEATURE: new Set(["images"]),
+};
+
 /**
- * Incoming arrays intentionally replace the submitted array so gallery-image removal
- * remains possible. Object entries at the same index are merged to retain unknown
- * nested properties that the current CMS editor does not expose.
+ * Generic arrays retain the legacy index-merge behavior for partial callers. The
+ * combined CMS editor opts into whole-array replacement for the two repeatable
+ * arrays it submits with each item's preserved raw object.
  */
-function mergeValue(existing: unknown, incoming: unknown): unknown {
+function mergeValue(
+  existing: unknown,
+  incoming: unknown,
+  path: string[],
+  options: ManagedBlockContentMergeOptions,
+): unknown {
   if (isRecord(existing) && isRecord(incoming)) {
-    return Object.fromEntries(Object.entries(incoming).map(([key, value]) => [key, mergeValue(existing[key], value)]).concat(
+    return Object.fromEntries(Object.entries(incoming).map(([key, value]) => [key, mergeValue(existing[key], value, [...path, key], options)]).concat(
       Object.entries(existing).filter(([key]) => !(key in incoming)),
     ));
   }
-  if (Array.isArray(existing) && Array.isArray(incoming)) return incoming.map((value, index) => mergeValue(existing[index], value));
+  if (Array.isArray(existing) && Array.isArray(incoming)) {
+    const blockPaths = options.blockType ? editorArrayPaths[options.blockType] : undefined;
+    if (options.replaceEditorArrays && blockPaths?.has(path.at(-1) ?? "")) return incoming;
+    return incoming.map((value, index) => mergeValue(existing[index], value, [...path, String(index)], options));
+  }
   return incoming;
 }
 
-export function mergeManagedBlockContent(existing: unknown, incoming: Record<string, unknown>) {
-  return mergeValue(isRecord(existing) ? existing : {}, incoming) as Record<string, unknown>;
+export function mergeManagedBlockContent(
+  existing: unknown,
+  incoming: Record<string, unknown>,
+  options: ManagedBlockContentMergeOptions = {},
+) {
+  return mergeValue(isRecord(existing) ? existing : {}, incoming, [], options) as Record<string, unknown>;
 }
 
 export function buildProjectBlockPersistencePlan(

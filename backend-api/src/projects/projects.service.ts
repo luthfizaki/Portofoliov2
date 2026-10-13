@@ -86,7 +86,7 @@ export class ProjectsService {
         publishedAt: null,
       });
       const created = await transaction.project.create({ data });
-      if (dto.blocks !== undefined) await this.applyManagedBlockChanges(transaction, created.id, [], dto.blocks);
+      if (dto.blocks !== undefined) await this.applyManagedBlockChanges(transaction, created.id, [], dto.blocks, { replaceEditorArrays: true });
       return dto.blocks === undefined
         ? created
         : transaction.project.findUniqueOrThrow({ where: { id: created.id }, include: { blocks: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }, categories: { include: { category: true } } } });
@@ -123,7 +123,7 @@ export class ProjectsService {
         publishedAt: current.publishedAt,
       }, current.id);
 
-      if (dto.blocks !== undefined) await this.applyManagedBlockChanges(transaction, id, await this.findProjectBlocks(transaction, id), dto.blocks);
+      if (dto.blocks !== undefined) await this.applyManagedBlockChanges(transaction, id, await this.findProjectBlocks(transaction, id), dto.blocks, { replaceEditorArrays: true });
       const updated = await transaction.project.update({ where: { id }, data: { ...data, ...(dto.blocks !== undefined ? { updatedAt: new Date() } : {}) } });
       return dto.blocks === undefined
         ? updated
@@ -137,7 +137,9 @@ export class ProjectsService {
     const updated = await this.prisma.$transaction(async (transaction) => {
       const current = await transaction.project.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
       if (!current) throw this.notFound();
-      await this.applyManagedBlockChanges(transaction, id, await this.findProjectBlocks(transaction, id), blocks);
+      // The legacy route remains available, but editor-owned repeatable arrays
+      // still follow the explicit complete-array contract to avoid index mixing.
+      await this.applyManagedBlockChanges(transaction, id, await this.findProjectBlocks(transaction, id), blocks, { replaceEditorArrays: true });
       await transaction.project.update({ where: { id }, data: { updatedAt: new Date() } });
       return transaction.project.findUniqueOrThrow({ where: { id }, include: { blocks: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }, categories: { include: { category: true } } } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
@@ -298,6 +300,7 @@ export class ProjectsService {
     projectId: string,
     existing: ExistingProjectBlock[],
     blocks: ProjectBlockDto[],
+    options: { replaceEditorArrays?: boolean } = {},
   ) {
     const conflicts = projectBlockPersistenceConflicts(existing, blocks);
     if (conflicts.duplicateIncomingTypes.length) {
@@ -318,7 +321,10 @@ export class ProjectsService {
         where: { id: update.id },
         data: {
           title: update.block.title ?? current.title,
-          content: mergeManagedBlockContent(current.content, update.block.content) as Prisma.InputJsonValue,
+          content: mergeManagedBlockContent(current.content, update.block.content, {
+            blockType: update.block.type,
+            replaceEditorArrays: options.replaceEditorArrays,
+          }) as Prisma.InputJsonValue,
           sortOrder: update.block.sortOrder ?? current.sortOrder,
           isVisible: update.block.isVisible ?? current.isVisible,
           layoutVariant: update.block.layoutVariant ?? current.layoutVariant,

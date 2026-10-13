@@ -2,13 +2,14 @@
 
 import { Archive, Check, Eye, ImagePlus, Plus, Save, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import type { SessionUser } from "../lib/api";
 import { apiUrl } from "../lib/api";
 import { CmsWorkspace } from "./cms-workspace";
+import { draftJson, editorSnapshot, isConfirmedProjectStatus, isEditorActionDisabled, isEditorDirty, mergeConfirmedProjectStatus, preserveUnknownFields, shouldApplyServerResponse, shouldProtectNavigation, type EditorRequestState } from "./project-editor-state";
 
-type GalleryItem = { number: string; title: string; type: string; image: string; className: string };
-type CaseFeatureImage = { url: string; alt: string };
+type GalleryItem = { number: string; title: string; type: string; image: string; className: string; raw: Record<string, unknown> };
+type CaseFeatureImage = { url: string; alt: string; raw: Record<string, unknown> };
 type CaseFeature = { eyebrow: string; titleLines: string; description: string; platform: string; scope: string; images: CaseFeatureImage[]; layout: "media-left" | "media-right" };
 type CaseStudyState = {
   eyebrow: string; lede: string; heroVisualUrl: string; heroVisualAlt: string;
@@ -53,9 +54,9 @@ const defaultCaseStudy: CaseStudyState = {
   galleryIntro: "This section is fully repeatable. Each uploaded item only needs an image, optional caption, and layout type: full width or half width.",
   galleryNote: "CMS BLOCKS / FULL WIDTH / TWO COLUMN / OPTIONAL CAPTION",
   gallery: [
-    { number: "01", title: "GUIDED ASSESSMENT JOURNEY", type: "MOBILE APPLICATION", image: "/case-studies/seleris/gallery-assessment.png", className: "is-wide" },
-    { number: "02", title: "RESULT EXPERIENCE", type: "DASHBOARD", image: "/case-studies/seleris/gallery-result.png", className: "" },
-    { number: "03", title: "BUSINESS OPERATIONS", type: "DASHBOARD", image: "/case-studies/seleris/gallery-business.png", className: "" },
+    { number: "01", title: "GUIDED ASSESSMENT JOURNEY", type: "MOBILE APPLICATION", image: "/case-studies/seleris/gallery-assessment.png", className: "is-wide", raw: {} },
+    { number: "02", title: "RESULT EXPERIENCE", type: "DASHBOARD", image: "/case-studies/seleris/gallery-result.png", className: "", raw: {} },
+    { number: "03", title: "BUSINESS OPERATIONS", type: "DASHBOARD", image: "/case-studies/seleris/gallery-business.png", className: "", raw: {} },
   ],
   feature: null,
   nextLabel: "NEXT CASE STUDY",
@@ -82,6 +83,7 @@ function galleryValue(value: unknown) {
       type: stringValue(record.type),
       image: stringValue(record.image),
       className: stringValue(record.className),
+      raw: { ...record },
     };
   });
 }
@@ -94,12 +96,12 @@ function caseFeatureValue(value: unknown): CaseFeature | null {
       if (!item || typeof item !== "object") return null;
       const image = item as Record<string, unknown>;
       const url = stringValue(image.url).trim();
-      return url ? { url, alt: stringValue(image.alt).trim() } : null;
+      return { url, alt: stringValue(image.alt).trim(), raw: { ...image } };
     }).filter((item): item is CaseFeatureImage => item !== null)
     : [];
   const normalizedImages = images.length
     ? images
-    : Array.from(new Set([record.image, record.imageUrl, record.visualUrl].map((item) => stringValue(item).trim()).filter(Boolean))).map((url) => ({ url, alt: stringValue(record.visualAlt, stringValue(record.imageAlt, stringValue(record.alt))).trim() }));
+    : Array.from(new Set([record.image, record.imageUrl, record.visualUrl].map((item) => stringValue(item).trim()).filter(Boolean))).map((url) => ({ url, alt: stringValue(record.visualAlt, stringValue(record.imageAlt, stringValue(record.alt))).trim(), raw: {} }));
   return {
     eyebrow: stringValue(record.eyebrow),
     titleLines: Array.isArray(record.titleLines) ? record.titleLines.filter((item): item is string => typeof item === "string").join("\n") : stringValue(record.titleLines),
@@ -189,22 +191,27 @@ function blocksPayload(project: EditableProject | undefined, state: CaseStudySta
   const next = recordValue(block(project, "CASE_NEXT"));
   const feature = recordValue(block(project, "CASE_FEATURE"));
   const existingFeature = project?.blocks?.some((item) => item.type === "CASE_FEATURE") ?? false;
-  const galleryItems = Array.isArray(gallery.items) ? gallery.items : [];
   const blocks = [
     blockPayload(project, "CASE_HERO", { title: "Case Study Hero", sortOrder: 0 }, { ...hero, eyebrow: state.eyebrow, lede: state.lede, heroVisualUrl: state.heroVisualUrl, heroVisualAlt: state.heroVisualAlt }),
     blockPayload(project, "CASE_SUMMARY", { title: "Project Summary", sortOrder: 1 }, { ...summary, heading: state.summaryHeading, intro: state.summaryIntro, overview: state.overview, contribution: state.contribution, challenge: state.challenge, deliverables }),
-    blockPayload(project, "CASE_GALLERY", { title: "UI Gallery", sortOrder: 2 }, { ...gallery, heading: state.galleryHeading, intro: state.galleryIntro, note: state.galleryNote, items: state.gallery.map((item, index) => ({ ...recordValue(galleryItems[index]), ...item })) }),
+    blockPayload(project, "CASE_GALLERY", { title: "UI Gallery", sortOrder: 2 }, { ...gallery, heading: state.galleryHeading, intro: state.galleryIntro, note: state.galleryNote, items: state.gallery.map((item) => preserveUnknownFields(item.raw, { number: item.number, title: item.title, type: item.type, image: item.image, className: item.className })) }),
     ...(state.feature ? [blockPayload(project, "CASE_FEATURE", { title: "Product Feature", sortOrder: 3 }, {
       ...feature,
       ...state.feature,
       titleLines: state.feature.titleLines.split("\n").map((line) => line.trim()).filter(Boolean),
-      images: state.feature.images.map((image, index) => ({ ...recordValue(Array.isArray(feature.images) ? feature.images[index] : undefined), ...image })),
+      images: state.feature.images.map((image) => preserveUnknownFields(image.raw, { url: image.url, alt: image.alt })),
     })] : existingFeature ? [{ type: "CASE_FEATURE", content: {}, delete: true }] : []),
     blockPayload(project, "CASE_NEXT", { title: "Next Case Study", sortOrder: state.feature ? 4 : 3 }, { ...next, label: state.nextLabel, title: state.nextTitle, text: state.nextText, url: state.nextUrl }),
   ];
   return {
     blocks,
   };
+}
+
+function isConfirmedProject(value: unknown): value is EditableProject {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.id === "string" && typeof record.updatedAt === "string" && Array.isArray(record.blocks);
 }
 
 export function ProjectEditor({ project, user }: { project?: EditableProject; user: SessionUser }) {
@@ -218,16 +225,60 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
   const [stale, setStale] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [uploading, setUploading] = useState("");
+  const [loadingLatest, setLoadingLatest] = useState(false);
+  const [copyingDraft, setCopyingDraft] = useState(false);
+  const [createdProjectId, setCreatedProjectId] = useState("");
+  const draftRevision = useRef(0);
+  const [savedSnapshot, setSavedSnapshot] = useState(() => editorSnapshot(asPayload(initialState(project)), blocksPayload(project, initialCaseStudy(project)).blocks));
+  const currentSnapshot = editorSnapshot(asPayload(form), blocksPayload(savedProject, caseStudy).blocks);
+  const isDirty = isEditorDirty(savedSnapshot, currentSnapshot);
+  const requestState: EditorRequestState = { dirty: isDirty, saving, publishing, loadingLatest };
+
+  useEffect(() => {
+    if (!shouldProtectNavigation(isDirty)) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
+
+  function confirmNavigation(destination = "another page") {
+    if (!shouldProtectNavigation(isDirty)) return true;
+    return window.confirm(`You have unsaved changes. Leave for ${destination}? Your local draft will be lost.`);
+  }
+
+  function applyConfirmedProject(nextProject: EditableProject) {
+    const nextForm = initialState(nextProject);
+    const nextCaseStudy = initialCaseStudy(nextProject);
+    setSavedProject(nextProject);
+    setForm(nextForm);
+    setCaseStudy(nextCaseStudy);
+    setSavedSnapshot(editorSnapshot(asPayload(nextForm), blocksPayload(nextProject, nextCaseStudy).blocks));
+    setCreatedProjectId("");
+  }
+
+  function applyServerBaseline(nextProject: EditableProject) {
+    const nextForm = initialState(nextProject);
+    const nextCaseStudy = initialCaseStudy(nextProject);
+    setSavedProject(nextProject);
+    setSavedSnapshot(editorSnapshot(asPayload(nextForm), blocksPayload(nextProject, nextCaseStudy).blocks));
+  }
 
   function setField<K extends keyof FormState>(field: K, value: FormState[K]) {
+    if (!Object.is(form[field], value)) draftRevision.current += 1;
     setForm((current) => ({ ...current, [field]: value }));
   }
 
   function setCaseField<K extends keyof CaseStudyState>(field: K, value: CaseStudyState[K]) {
+    if (!Object.is(caseStudy[field], value)) draftRevision.current += 1;
     setCaseStudy((current) => ({ ...current, [field]: value }));
   }
 
   function setGallery(index: number, patch: Partial<GalleryItem>) {
+    const current = caseStudy.gallery[index];
+    if (current && Object.entries(patch).some(([key, value]) => !Object.is(current[key as keyof GalleryItem], value))) draftRevision.current += 1;
     setCaseStudy((current) => ({
       ...current,
       gallery: current.gallery.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item),
@@ -235,6 +286,8 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
   }
 
   function setFeature(index: number, patch: Partial<CaseFeatureImage>) {
+    const current = caseStudy.feature?.images[index];
+    if (current && Object.entries(patch).some(([key, value]) => !Object.is(current[key as keyof CaseFeatureImage], value))) draftRevision.current += 1;
     setCaseStudy((current) => current.feature ? {
       ...current,
       feature: {
@@ -264,47 +317,146 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
     }
   }
 
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setError(""); setNotice(""); setStale(false); setSaving(true);
+  async function copyDraft() {
+    setCopyingDraft(true);
     try {
-      const response = await fetch(`${apiUrl}/api/v1/admin/projects${savedProject ? `/${savedProject.id}` : ""}`, {
-        method: savedProject ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-        body: JSON.stringify({ ...asPayload(form), blocks: blocksPayload(savedProject, caseStudy), ...(savedProject?.updatedAt ? { expectedUpdatedAt: savedProject.updatedAt } : {}) }),
+      await navigator.clipboard.writeText(draftJson(asPayload(form), blocksPayload(savedProject, caseStudy).blocks));
+      setNotice("Local draft JSON copied to the clipboard.");
+    } catch {
+      setError("Could not copy the draft JSON. Your local draft is still preserved; use Download draft JSON instead.");
+    } finally {
+      setCopyingDraft(false);
+    }
+  }
+
+  function downloadDraft() {
+    const blob = new Blob([draftJson(asPayload(form), blocksPayload(savedProject, caseStudy).blocks)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `project-draft-${savedProject?.slug ?? "new"}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setNotice("Editor-owned draft JSON downloaded. Server-controlled fields are not included.");
+  }
+
+  async function loadLatestProject() {
+    if (!savedProject || isEditorActionDisabled("loadLatest", requestState)) return;
+    if (!window.confirm("Loading the latest project will replace this local draft. Copy the draft JSON first if you need to keep it.")) return;
+
+    const requestRevision = draftRevision.current;
+    setLoadingLatest(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/admin/projects/${savedProject.id}`, { credentials: "include" });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body?.success || !isConfirmedProject(body.data)) throw new Error("Latest project could not be loaded.");
+      if (!shouldApplyServerResponse(requestRevision, draftRevision.current)) {
+        setError("The draft changed while the latest project was loading. Your draft is preserved; try loading again explicitly.");
+        return;
+      }
+      applyConfirmedProject(body.data);
+      setStale(false);
+      setNotice("Latest project loaded. The local conflict draft was discarded.");
+    } catch {
+      setError("Could not load the latest project. Your local draft is still preserved.");
+    } finally {
+      setLoadingLatest(false);
+    }
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isEditorActionDisabled("save", requestState)) return;
+    const requestRevision = draftRevision.current;
+    const projectAtRequest = savedProject;
+    setError(""); setNotice(""); setStale(false); setSaving(true);
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/admin/projects${projectAtRequest ? `/${projectAtRequest.id}` : ""}`, {
+        method: projectAtRequest ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ ...asPayload(form), blocks: blocksPayload(projectAtRequest, caseStudy), ...(projectAtRequest?.updatedAt ? { expectedUpdatedAt: projectAtRequest.updatedAt } : {}) }),
       });
       const body = await response.json().catch(() => null);
       if (!response.ok || !body?.success) {
-        if (response.status === 409 && body?.code === "STALE_PROJECT") setStale(true);
+        if (response.status === 409 && body?.code === "STALE_PROJECT") {
+          setStale(true);
+          setError("This project was changed by another editor. Your local draft is preserved; review it before loading the latest version.");
+          return;
+        }
         setError(body?.message ?? "Project could not be saved.");
         return;
       }
-      const projectId = savedProject?.id ?? body.data.id;
-      setSavedProject(body.data);
-      if (!savedProject) { router.replace(`/projects/${projectId}`); return; }
-      setNotice("Project and case study detail saved successfully."); router.refresh();
+      if (!isConfirmedProject(body.data)) {
+        setError("The server response was incomplete. Your local draft is preserved; no automatic recovery was attempted.");
+        return;
+      }
+      const confirmedProject = body.data;
+      const projectId = projectAtRequest?.id ?? confirmedProject.id;
+      if (shouldApplyServerResponse(requestRevision, draftRevision.current)) {
+        applyConfirmedProject(confirmedProject);
+        if (!project) { router.replace(`/projects/${projectId}`); return; }
+        setNotice("Project and case study detail saved successfully."); router.refresh();
+      } else {
+        applyServerBaseline(confirmedProject);
+        if (!projectAtRequest) {
+          setCreatedProjectId(confirmedProject.id);
+          setNotice("Project created on the server. Your newer local changes remain unsaved; export them or open the created project explicitly.");
+        } else {
+          setNotice("The server save succeeded. Changes made while saving remain unsaved in this editor.");
+        }
+      }
     } catch { setError("CMS API is unavailable."); } finally { setSaving(false); }
   }
 
   async function transition(action: "publish" | "unpublish" | "delete") {
-    if (!project) return;
+    const operation = action === "delete" ? "archive" : action;
+    if (!project || isEditorActionDisabled(operation, requestState)) return;
+    if ((action === "publish" || action === "unpublish") && isDirty) {
+      setError("Save the local draft before publishing or unpublishing this project.");
+      return;
+    }
+    if (action === "delete" && !confirmNavigation("Archive project")) return;
     setError(""); setNotice(""); setPublishing(true);
     try {
       const response = await fetch(`${apiUrl}/api/v1/admin/projects/${project.id}${action === "delete" ? "" : `/${action}`}`, { method: action === "delete" ? "DELETE" : "POST", credentials: "include" });
       const body = await response.json().catch(() => null);
       if (!response.ok || !body?.success) { setError(body?.message ?? "Project status could not be changed."); return; }
       if (action === "delete") { router.replace("/projects"); return; }
+      if (!isConfirmedProjectStatus(body.data)) {
+        setError("The server status response was incomplete. The editor state was not changed.");
+        return;
+      }
+      const currentProject = savedProject ?? project;
+      const nextProject = mergeConfirmedProjectStatus(currentProject, body.data);
+      if (!nextProject) {
+        setError("The server returned a different project. The editor state was not changed.");
+        return;
+      }
+      const nextForm = { ...form, status: nextProject.status };
+      setSavedProject(nextProject);
+      setForm(nextForm);
+      setSavedSnapshot(editorSnapshot(asPayload(nextForm), blocksPayload(nextProject, caseStudy).blocks));
+      setStale(false);
       setNotice(action === "publish" ? "Project published." : "Project moved to draft."); router.refresh();
     } catch { setError("CMS API is unavailable."); } finally { setPublishing(false); }
   }
 
   return (
-    <CmsWorkspace user={user} active="Projects" title={project ? "Edit Project" : "New Project"} subtitle={project ? "Update project details and publishing settings." : "Create a new portfolio project."}>
+    <CmsWorkspace user={user} active="Projects" title={project ? "Edit Project" : "New Project"} subtitle={project ? "Update project details and publishing settings." : "Create a new portfolio project."} onNavigate={confirmNavigation}>
       <div className="cms-module-body cms-editor-modern">
         <div className="cms-editor-modern__toolbar">
-          <a href="/projects">← Back to Projects</a>
+          <a href="/projects" onClick={(event) => {
+            event.preventDefault();
+            if (confirmNavigation("Projects")) router.push("/projects");
+          }}>← Back to Projects</a>
           <div>
             <span className={`cms-editor__status status-${form.status.replaceAll("_", "-").toLowerCase()}`}>{form.status.replaceAll("_", " ")}</span>
-            {project && <button className="cms-secondary-action" type="button" onClick={() => transition(form.status === "PUBLISHED" ? "unpublish" : "publish")} disabled={publishing}>{form.status === "PUBLISHED" ? "Unpublish" : "Publish"}</button>}
-            <button className="cms-module-primary" type="submit" form="project-editor" disabled={saving}>{saving ? <Check size={16} /> : <Save size={16} />}{saving ? "Saving" : "Save Project"}</button>
+            <span className={`cms-editor__draft-status${isDirty ? " is-dirty" : ""}`} aria-live="polite">{isDirty ? "Unsaved changes" : project ? "Saved" : "New draft"}</span>
+            {project && <button className="cms-secondary-action" type="button" onClick={() => transition(form.status === "PUBLISHED" ? "unpublish" : "publish")} disabled={isEditorActionDisabled(form.status === "PUBLISHED" ? "unpublish" : "publish", requestState)} title={isDirty ? "Save changes before changing publish status" : undefined}>{form.status === "PUBLISHED" ? "Unpublish" : isDirty ? "Save before publish" : "Publish"}</button>}
+            <button className="cms-module-primary" type="submit" form="project-editor" disabled={isEditorActionDisabled("save", requestState)}>{saving ? <Check size={16} /> : <Save size={16} />}{saving ? "Saving" : "Save Project"}</button>
           </div>
         </div>
 
@@ -354,7 +506,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
             </div>
 
             <div className="cms-gallery-editor">
-              <header><strong>Gallery Items</strong><button type="button" onClick={() => setCaseField("gallery", [...caseStudy.gallery, { number: String(caseStudy.gallery.length + 1).padStart(2, "0"), title: "", type: "", image: "", className: "" }])}><Plus size={14} />Add Image</button></header>
+              <header><strong>Gallery Items</strong><button type="button" onClick={() => setCaseField("gallery", [...caseStudy.gallery, { number: String(caseStudy.gallery.length + 1).padStart(2, "0"), title: "", type: "", image: "", className: "", raw: {} }])}><Plus size={14} />Add Image</button></header>
               {caseStudy.gallery.map((item, index) => (
                 <div className="cms-gallery-editor__item" key={`${item.number}-${index}`}>
                   <label className="cms-field">Number<input value={item.number} onChange={(event) => setGallery(index, { number: event.target.value })} /></label>
@@ -378,7 +530,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
                 <label className="cms-field">Platform<input value={caseStudy.feature.platform} onChange={(event) => setCaseField("feature", { ...caseStudy.feature!, platform: event.target.value })} /></label>
                 <label className="cms-field">Scope<input value={caseStudy.feature.scope} onChange={(event) => setCaseField("feature", { ...caseStudy.feature!, scope: event.target.value })} /></label>
                 <div className="cms-field cms-field--wide cms-feature-images-field">
-                  <div className="cms-feature-images-field__header"><span>Images</span><button type="button" onClick={() => setCaseField("feature", { ...caseStudy.feature!, images: [...caseStudy.feature!.images, { url: "", alt: "" }] })}><Plus size={14} />Add Image</button></div>
+                  <div className="cms-feature-images-field__header"><span>Images</span><button type="button" onClick={() => setCaseField("feature", { ...caseStudy.feature!, images: [...caseStudy.feature!.images, { url: "", alt: "", raw: {} }] })}><Plus size={14} />Add Image</button></div>
                   {caseStudy.feature.images.map((image, index) => <div className="cms-feature-image-item" key={`${index}-${image.url}`}>
                     <label className="cms-field">Image URL<input value={image.url} onChange={(event) => setFeature(index, { url: event.target.value })} /></label>
                     <label className="cms-field">Alt Text<input value={image.alt} onChange={(event) => setFeature(index, { alt: event.target.value })} /></label>
@@ -398,11 +550,26 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
             </div>
           </section>
 
-          {error && <p className="cms-form-message cms-form-message--error" role="alert">{error}{stale && <> <button type="button" onClick={() => window.location.reload()}>Reload latest project</button></>}</p>}
-          {notice && <p className="cms-form-message">{notice}</p>}
+          {error && <div className="cms-form-message cms-form-message--error" role="alert">
+            <p>{error}</p>
+            {stale && <div className="cms-conflict-actions">
+              <button type="button" onClick={() => void copyDraft()} disabled={copyingDraft}>{copyingDraft ? "Copying draft" : "Copy draft JSON"}</button>
+              <button type="button" onClick={downloadDraft}>Download draft JSON</button>
+              <button type="button" onClick={() => void loadLatestProject()} disabled={isEditorActionDisabled("loadLatest", requestState)}>{loadingLatest ? "Loading latest" : "Load latest project"}</button>
+              <small>Loading the latest version replaces this editor-owned draft. Server-controlled fields are not included in the export.</small>
+            </div>}
+          </div>}
+          {notice && <p className="cms-form-message" role="status" aria-live="polite">{notice}</p>}
+          {createdProjectId && <div className="cms-form-message" role="status" aria-live="polite">
+            <p>The server-created project is ready, while this local draft still has unsaved changes.</p>
+            <div className="cms-conflict-actions">
+              <button type="button" onClick={downloadDraft}>Download local draft JSON</button>
+              <button type="button" onClick={() => { if (confirmNavigation("the created project")) router.push(`/projects/${createdProjectId}`); }}>Open created project</button>
+            </div>
+          </div>}
         </form>
 
-        {project && <footer className="cms-modern-editor-footer"><a href={`http://localhost:3100/case-study/${project.slug}`} target="_blank" rel="noreferrer"><Eye size={16} />Open public URL</a><button type="button" onClick={() => transition("delete")} disabled={publishing}><Archive size={16} />Archive project</button></footer>}
+        {project && <footer className="cms-modern-editor-footer"><a href={`http://localhost:3100/case-study/${project.slug}`} target="_blank" rel="noreferrer"><Eye size={16} />Open public URL</a><button type="button" onClick={() => transition("delete")} disabled={isEditorActionDisabled("archive", requestState)}><Archive size={16} />Archive project</button></footer>}
       </div>
     </CmsWorkspace>
   );

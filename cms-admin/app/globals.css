@@ -201,6 +201,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 .cms-checkboxes input { width: 16px; height: 16px; accent-color: var(--cms-accent); }
 .cms-form-message { margin: 0; border-left: 3px solid var(--cms-success); background: #eaf8f3; padding: 11px 13px; color: var(--cms-success); font-size: 12px; }
 .cms-form-message--error { border-color: var(--cms-danger); background: #fff2f1; color: #a73530; }
+.cms-form-message > p { margin: 0; }
+.cms-conflict-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.cms-conflict-actions button { min-height: 38px; border: 1px solid currentColor; border-radius: 8px; background: #fff; color: inherit; padding: 0 11px; font-size: 10px; font-weight: 700; }
+.cms-conflict-actions small { flex-basis: 100%; color: inherit; font-size: 10px; line-height: 1.45; }
 .cms-editor__footer { display: flex; max-width: 1064px; gap: 20px; justify-content: space-between; margin: 0 auto; padding: 24px 0 52px; border-top: 1px solid var(--cms-border); }
 .cms-editor__footer a, .cms-editor__footer button { display: inline-flex; min-height: 42px; gap: 8px; align-items: center; border: 0; border-radius: var(--cms-radius-sm); background: transparent; color: var(--cms-accent); padding: 0 10px; font-family: "IBM Plex Mono", monospace; font-size: 9px; font-weight: 600; letter-spacing: .45px; text-decoration: none; }
 .cms-editor__footer a:hover { background: var(--cms-accent-soft); }
@@ -843,6 +847,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 .cms-editor-modern__toolbar > a { color: var(--overview-purple); font-size: 10px; font-weight: 600; }
 .cms-editor-modern__toolbar > div { display: flex; gap: 10px; align-items: center; }
 .cms-editor-modern__toolbar .cms-module-primary { min-width: 135px; border: 0; }
+.cms-editor__draft-status { color: var(--overview-muted); font-size: 9px; font-weight: 700; white-space: nowrap; }
+.cms-editor__draft-status.is-dirty { color: #a73530; }
 .cms-secondary-action { height: 38px; border: 1px solid var(--overview-border); border-radius: 9px; background: #fff; color: var(--overview-purple); padding: 0 14px; font-size: 9px; font-weight: 600; }
 .cms-secondary-action:hover { border-color: var(--overview-purple); background: #faf9ff; }
 .cms-modern-form,

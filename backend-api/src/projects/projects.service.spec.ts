@@ -235,6 +235,70 @@ test("legacy block-only save remains functional", async () => {
   assert.equal(harness.committed, true);
 });
 
+test("combined save replaces gallery and feature arrays without index-based metadata mixing", async () => {
+  const harness = makeHarness({ blocks: [
+    {
+      id: "gallery-1",
+      type: "CASE_GALLERY",
+      title: "Gallery",
+      content: {
+        items: [
+          { image: "old-a", unknownA: "only A" },
+          { image: "old-b", unknownB: "only B" },
+        ],
+      },
+      sortOrder: 2,
+      isVisible: true,
+      desktop: true,
+      tablet: true,
+      mobile: true,
+      layoutVariant: null,
+      background: null,
+      animation: null,
+    },
+    {
+      id: "feature-1",
+      type: "CASE_FEATURE",
+      title: "Feature",
+      content: {
+        images: [
+          { url: "old-feature-a", unknownA: "only A" },
+          { url: "old-feature-b", unknownB: "only B" },
+        ],
+      },
+      sortOrder: 3,
+      isVisible: true,
+      desktop: true,
+      tablet: true,
+      mobile: true,
+      layoutVariant: null,
+      background: null,
+      animation: null,
+    },
+  ] });
+
+  await harness.service.update("project-1", {
+    blocks: [
+      {
+        type: "CASE_GALLERY",
+        content: { items: [{ image: "new-b", unknownB: "only B" }, { image: "new-c", fresh: true }] },
+      },
+      {
+        type: "CASE_FEATURE",
+        content: { images: [{ url: "new-feature-b", unknownB: "only B" }] },
+      },
+    ],
+  });
+
+  assert.deepEqual((harness.existingBlocks[0].content as Record<string, unknown>).items, [
+    { image: "new-b", unknownB: "only B" },
+    { image: "new-c", fresh: true },
+  ]);
+  assert.deepEqual((harness.existingBlocks[1].content as Record<string, unknown>).images, [
+    { url: "new-feature-b", unknownB: "only B" },
+  ]);
+});
+
 test("preserves omitted managed metadata and unknown nested content fields", async () => {
   const harness = makeHarness();
   await harness.service.update("project-1", {

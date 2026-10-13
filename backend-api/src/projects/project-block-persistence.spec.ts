@@ -85,6 +85,72 @@ test("merges nested object fields while replacing arrays", () => {
   });
 });
 
+test("combined editor mode replaces gallery items without mixing deleted or reordered metadata", () => {
+  const existing = {
+    heading: "Gallery",
+    options: { density: "compact", theme: "dark" },
+    items: [
+      { image: "old-a", title: "A", unknownA: "only A" },
+      { image: "old-b", title: "B", unknownB: "only B" },
+    ],
+  };
+
+  const removedFirst = mergeManagedBlockContent(existing, {
+    items: [{ image: "new-b", title: "B", unknownB: "only B" }],
+  }, { blockType: "CASE_GALLERY", replaceEditorArrays: true });
+  assert.deepEqual(removedFirst.items, [{ image: "new-b", title: "B", unknownB: "only B" }]);
+
+  const reordered = mergeManagedBlockContent(existing, {
+    items: [
+      { image: "new-b", title: "B", unknownB: "only B" },
+      { image: "new-a", title: "A", unknownA: "only A" },
+    ],
+  }, { blockType: "CASE_GALLERY", replaceEditorArrays: true });
+  assert.deepEqual(reordered.items, [
+    { image: "new-b", title: "B", unknownB: "only B" },
+    { image: "new-a", title: "A", unknownA: "only A" },
+  ]);
+  assert.deepEqual(reordered.options, { density: "compact", theme: "dark" });
+});
+
+test("combined editor mode makes new gallery items start without prior item metadata", () => {
+  const merged = mergeManagedBlockContent({
+    items: [{ image: "old", unknownOld: true }],
+  }, {
+    items: [{ image: "old", unknownOld: true }, { image: "new", title: "New" }],
+  }, { blockType: "CASE_GALLERY", replaceEditorArrays: true });
+
+  assert.deepEqual(merged.items, [
+    { image: "old", unknownOld: true },
+    { image: "new", title: "New" },
+  ]);
+});
+
+test("combined editor mode replaces CASE_FEATURE images as a complete array", () => {
+  const merged = mergeManagedBlockContent({
+    images: [
+      { url: "old-a", unknownA: "only A" },
+      { url: "old-b", unknownB: "only B" },
+    ],
+    layout: { variant: "media-right" },
+  }, {
+    images: [{ url: "new-b", alt: "B", unknownB: "only B" }],
+  }, { blockType: "CASE_FEATURE", replaceEditorArrays: true });
+
+  assert.deepEqual(merged.images, [{ url: "new-b", alt: "B", unknownB: "only B" }]);
+  assert.deepEqual(merged.layout, { variant: "media-right" });
+});
+
+test("legacy mode keeps partial array merge semantics for compatibility", () => {
+  const merged = mergeManagedBlockContent({
+    items: [{ image: "old", unknownOld: true }],
+  }, {
+    items: [{ image: "updated" }],
+  }, { blockType: "CASE_GALLERY" });
+
+  assert.deepEqual(merged.items, [{ image: "updated", unknownOld: true }]);
+});
+
 test("reports duplicate managed block types without flagging unmanaged blocks", () => {
   const conflicts = projectBlockPersistenceConflicts(
     [block("CASE_HERO"), block("CASE_HERO"), block("flagship")],
