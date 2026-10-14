@@ -493,7 +493,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
               <label className="cms-field cms-field--wide">Hero Eyebrow<input value={caseStudy.eyebrow} onChange={(event) => setCaseField("eyebrow", event.target.value)} /></label>
               <label className="cms-field cms-field--wide">Hero Lead<textarea value={caseStudy.lede} onChange={(event) => setCaseField("lede", event.target.value)} rows={4} /></label>
               <label className="cms-field cms-field--wide">Hero Visual URL<input value={caseStudy.heroVisualUrl} onChange={(event) => setCaseField("heroVisualUrl", event.target.value)} /></label>
-              <label className="cms-upload-field">Hero Visual Upload<input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage("hero", file); }} /><span><ImagePlus size={15} />{uploading === "hero" ? "Uploading" : "Upload hero image"}</span></label>
+              <label className="cms-upload-field">Hero Visual Upload<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage("hero", file); }} /><span><ImagePlus size={15} />{uploading === "hero" ? "Uploading" : "Upload hero image"}</span></label>
               <label className="cms-field cms-field--wide">Hero Visual Alt<input value={caseStudy.heroVisualAlt} onChange={(event) => setCaseField("heroVisualAlt", event.target.value)} /></label>
               <label className="cms-field cms-field--wide">Summary Heading<textarea value={caseStudy.summaryHeading} onChange={(event) => setCaseField("summaryHeading", event.target.value)} rows={3} /></label>
               <label className="cms-field cms-field--wide">Summary Intro<textarea value={caseStudy.summaryIntro} onChange={(event) => setCaseField("summaryIntro", event.target.value)} rows={4} /></label>
@@ -514,7 +514,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
                   <label className="cms-field">Type<input value={item.type} onChange={(event) => setGallery(index, { type: event.target.value })} /></label>
                   <label className="cms-field">Layout<select value={item.className} onChange={(event) => setGallery(index, { className: event.target.value })}><option value="">Half width</option><option value="is-wide">Full width</option></select></label>
                   <label className="cms-field cms-field--wide">Image URL<input value={item.image} onChange={(event) => setGallery(index, { image: event.target.value })} /></label>
-                  <label className="cms-upload-field"><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(index, file); }} /><span><ImagePlus size={15} />{uploading === String(index) ? "Uploading" : "Upload image"}</span></label>
+                  <label className="cms-upload-field"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(index, file); }} /><span><ImagePlus size={15} />{uploading === String(index) ? "Uploading" : "Upload image"}</span></label>
                   <button className="cms-gallery-remove" type="button" onClick={() => setCaseField("gallery", caseStudy.gallery.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={14} />Remove</button>
                 </div>
               ))}
@@ -534,7 +534,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
                   {caseStudy.feature.images.map((image, index) => <div className="cms-feature-image-item" key={`${index}-${image.url}`}>
                     <label className="cms-field">Image URL<input value={image.url} onChange={(event) => setFeature(index, { url: event.target.value })} /></label>
                     <label className="cms-field">Alt Text<input value={image.alt} onChange={(event) => setFeature(index, { alt: event.target.value })} /></label>
-                    <label className="cms-upload-field"><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(["feature", index], file); }} /><span><ImagePlus size={15} />{uploading === `feature-${index}` ? "Uploading" : "Upload image"}</span></label>
+                    <label className="cms-upload-field"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(["feature", index], file); }} /><span><ImagePlus size={15} />{uploading === `feature-${index}` ? "Uploading" : "Upload image"}</span></label>
                     <button className="cms-gallery-remove" type="button" onClick={() => setCaseField("feature", { ...caseStudy.feature!, images: caseStudy.feature!.images.filter((_, imageIndex) => imageIndex !== index) })}><Trash2 size={14} />Remove</button>
                   </div>)}
                 </div>

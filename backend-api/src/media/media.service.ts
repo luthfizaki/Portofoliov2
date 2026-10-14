@@ -1,16 +1,9 @@
-import { Injectable, InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { MediaType } from "@prisma/client";
 import { randomUUID } from "node:crypto";
-import { extname } from "node:path";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { PrismaService } from "../database/prisma.service";
-
-type UploadedFile = {
-  originalname: string;
-  mimetype: string;
-  size: number;
-  buffer: Buffer;
-};
+import { InvalidMediaUploadError, type UploadedMediaFile, validateMediaUpload } from "./media-validation";
 
 class DisabledRealtimeTransport {
   readonly CONNECTING = 0;
@@ -64,26 +57,34 @@ export class MediaService {
     this.bucket = bucket;
   }
 
-  async store(file: UploadedFile) {
-    const extension =
-      extname(file.originalname).toLowerCase() ||
-      this.extensionFromMime(file.mimetype);
+  async store(file: UploadedMediaFile) {
+    let validated: ReturnType<typeof validateMediaUpload>;
+    try {
+      validated = validateMediaUpload(file);
+    } catch (error) {
+      if (error instanceof InvalidMediaUploadError) {
+        throw new BadRequestException({
+          success: false,
+          code: "INVALID_MEDIA_UPLOAD",
+          message: error.message,
+        });
+      }
+      throw error;
+    }
 
-    const filename = `id_${randomUUID().replaceAll("-", "").slice(0, 12)}${extension}`;
+    const filename = `id_${randomUUID().replaceAll("-", "").slice(0, 12)}${validated.extension}`;
 
     const storageKey = `uploads/${filename}`;
 
     const { error: uploadError } = await this.supabase.storage
       .from(this.bucket)
       .upload(storageKey, file.buffer, {
-        contentType: file.mimetype,
+        contentType: validated.mimeType,
         upsert: false,
       });
 
     if (uploadError) {
-      throw new InternalServerErrorException(
-        `Failed to upload file to storage: ${uploadError.message}`,
-      );
+      throw new InternalServerErrorException("Failed to upload file to storage.");
     }
 
     const {
@@ -95,12 +96,12 @@ export class MediaService {
     try {
       const asset = await this.prisma.mediaAsset.create({
         data: {
-          type: this.mediaType(file.mimetype),
+          type: this.mediaType(validated.mimeType),
           filename,
-          originalName: file.originalname,
+          originalName: validated.originalName,
           url: publicUrl,
           storageKey: `${this.bucket}/${storageKey}`,
-          mimeType: file.mimetype,
+          mimeType: validated.mimeType,
           size: file.size,
         },
       });
@@ -135,14 +136,4 @@ export class MediaService {
     return MediaType.OTHER;
   }
 
-  private extensionFromMime(mimeType: string) {
-    if (mimeType === "image/webp") return ".webp";
-    if (mimeType === "image/png") return ".png";
-    if (mimeType === "image/jpeg") return ".jpg";
-    if (mimeType === "image/svg+xml") return ".svg";
-    if (mimeType === "video/mp4") return ".mp4";
-    if (mimeType === "application/pdf") return ".pdf";
-
-    return "";
-  }
 }

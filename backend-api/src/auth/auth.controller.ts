@@ -7,6 +7,24 @@ import { TokenService } from "./token.service";
 
 type CookieSameSite = "lax" | "strict" | "none";
 
+export function cookieOptionsFor(config: Pick<ConfigService, "get">) {
+  const isProduction = config.get<string>("NODE_ENV") === "production";
+  const configuredSameSite = config.get<string>("COOKIE_SAME_SITE")?.toLowerCase();
+  const sameSite: CookieSameSite =
+    configuredSameSite === "strict" || configuredSameSite === "none"
+      ? configuredSameSite
+      : "lax";
+  const secure = isProduction || sameSite === "none" || config.get<string>("COOKIE_SECURE") === "true";
+  const domain = config.get<string>("COOKIE_DOMAIN");
+
+  return {
+    httpOnly: true,
+    secure,
+    sameSite,
+    ...(domain && domain !== "localhost" ? { domain } : {}),
+  };
+}
+
 @Controller("auth")
 export class AuthController {
   constructor(
@@ -54,22 +72,7 @@ export class AuthController {
   }
 
   private cookieOptions() {
-    const isProduction = this.config.get<string>("NODE_ENV") === "production";
-    const configuredSameSite = this.config.get<string>("COOKIE_SAME_SITE")?.toLowerCase();
-    const sameSite: CookieSameSite = isProduction
-      ? "none"
-      : configuredSameSite === "strict" || configuredSameSite === "none"
-        ? configuredSameSite
-        : "lax";
-    const secure = isProduction || sameSite === "none" || this.config.get<string>("COOKIE_SECURE") === "true";
-    const domain = this.config.get<string>("COOKIE_DOMAIN");
-
-    return {
-      httpOnly: true,
-      secure,
-      sameSite,
-      ...(domain && domain !== "localhost" ? { domain } : {}),
-    };
+    return cookieOptionsFor(this.config);
   }
 
   private accessTokenFrom(request: Request) {

@@ -264,18 +264,19 @@ test("experience, skill, and testimonial routes enforce representative reader an
 });
 
 test("media upload uses HTTP authorization before invoking the mocked storage service", async () => {
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   const viewerForm = new FormData();
-  viewerForm.append("file", new Blob(["viewer upload"], { type: "text/plain" }), "viewer.txt");
+  viewerForm.append("file", new Blob([png], { type: "image/png" }), "viewer.png");
   await assertStatus(
     await fetch(`${baseUrl}/api/v1/admin/media/upload`, { method: "POST", headers: authorizationHeaders("viewer"), body: viewerForm }),
     403,
   );
 
   const editorForm = new FormData();
-  editorForm.append("file", new Blob(["editor upload"], { type: "text/plain" }), "editor.txt");
+  editorForm.append("file", new Blob([png], { type: "image/png" }), "editor.png");
   const upload = await fetch(`${baseUrl}/api/v1/admin/media/upload`, { method: "POST", headers: authorizationHeaders("editor"), body: editorForm });
   await assertStatus(upload, 201);
-  assert.deepEqual(await upload.json(), { operation: "media.store", filename: "editor.txt", mimetype: "text/plain", size: 13 });
+  assert.deepEqual(await upload.json(), { operation: "media.store", filename: "editor.png", mimetype: "image/png", size: png.length });
 });
 
 test("missing, malformed, invalidly signed, null, and unknown roles fail closed over HTTP", async () => {
