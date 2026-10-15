@@ -25,6 +25,11 @@ async function proxy(request: NextRequest, context: RouteContext) {
   if (cookie) headers.set("Cookie", cookie);
   if (origin) headers.set("Origin", origin);
   if (referer) headers.set("Referer", referer);
+  // This server-side secret is intentionally never exposed to browser responses.
+  const protectionBypassSecret = process.env.BACKEND_VERCEL_PROTECTION_BYPASS_SECRET;
+  if (protectionBypassSecret) {
+    headers.set("x-vercel-protection-bypass", protectionBypassSecret);
+  }
 
   const backendResponse = await fetch(targetUrl, {
     method: request.method,

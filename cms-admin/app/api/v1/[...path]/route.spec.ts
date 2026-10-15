@@ -43,6 +43,25 @@ function backendResponse(status: number, body: unknown, cookies: string[] = []) 
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+test("server-side proxy adds the configured Vercel protection bypass header", async () => {
+  const previous = process.env.BACKEND_VERCEL_PROTECTION_BYPASS_SECRET;
+  process.env.BACKEND_VERCEL_PROTECTION_BYPASS_SECRET = "test-only-protection-token";
+  try {
+    await withBackendResponse(
+      backendResponse(200, { success: true, data: null }),
+      async (calls) => {
+        const response = await POST(refreshRequest(), context());
+        assert.equal(response.status, 200);
+        assert.equal(new Headers(calls[0][1]?.headers).get("x-vercel-protection-bypass"), "test-only-protection-token");
+        assert.equal((await response.text()).includes("test-only-protection-token"), false);
+      },
+    );
+  } finally {
+    if (previous === undefined) delete process.env.BACKEND_VERCEL_PROTECTION_BYPASS_SECRET;
+    else process.env.BACKEND_VERCEL_PROTECTION_BYPASS_SECRET = previous;
+  }
+});
+
 test("refresh proxy forwards one backend auth Set-Cookie unchanged and retains browser provenance", async () => {
   await withBackendResponse(
     backendResponse(200, { success: true, data: { user: { id: "user-1" } } }, [accessCookie]),
