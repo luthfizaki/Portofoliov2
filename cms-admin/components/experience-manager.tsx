@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Check, Clock3, Plus, RefreshCw, Save } from "lucide-react";
+import { Archive, Check, Clock3, Plus, RefreshCw, RotateCcw, Save } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 import { apiUrl } from "../lib/api";
 
@@ -116,6 +116,7 @@ export function ExperienceManager({ initialRows }: { initialRows: ExperienceRow[
 
   async function archiveCurrent() {
     if (!form.id) return;
+    if (!window.confirm("Archive this role? It will be removed from the public Experience section and remain in the CMS for restoration.")) return;
     setSaving(true);
     setError("");
     setNotice("");
@@ -129,6 +130,34 @@ export function ExperienceManager({ initialRows }: { initialRows: ExperienceRow[
       await refreshRows();
       setForm(emptyForm);
       setNotice("Experience archived and homepage section synced.");
+    } catch {
+      setError("CMS API is unavailable. Start backend service and try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function restoreCurrent() {
+    if (!form.id || form.status !== "ARCHIVED") return;
+    if (!window.confirm("Restore this role as a draft? It will stay off the public site until you publish it.")) return;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/admin/experiences/${form.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: "DRAFT" }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body?.success) {
+        setError(body?.message ?? "Unable to restore experience.");
+        return;
+      }
+      await refreshRows();
+      setForm((current) => ({ ...current, status: "DRAFT" }));
+      setNotice("Experience restored as a draft.");
     } catch {
       setError("CMS API is unavailable. Start backend service and try again.");
     } finally {
@@ -182,7 +211,7 @@ export function ExperienceManager({ initialRows }: { initialRows: ExperienceRow[
 
           {error && <p className="cms-form-message cms-form-message--error" role="alert">{error}</p>}
           {notice && <p className="cms-form-message">{notice}</p>}
-          {form.id && <button className="cms-experience-archive" type="button" onClick={archiveCurrent} disabled={saving}><Archive size={15} />Archive this role</button>}
+          {form.id && form.status === "ARCHIVED" ? <button className="cms-secondary-action" type="button" onClick={restoreCurrent} disabled={saving}><RotateCcw size={15} />Restore as draft</button> : form.id ? <button className="cms-experience-archive" type="button" onClick={archiveCurrent} disabled={saving}><Archive size={15} />Archive this role</button> : null}
         </form>
       </div>
     </div>
