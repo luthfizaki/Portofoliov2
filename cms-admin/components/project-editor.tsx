@@ -418,7 +418,10 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
       setError("Save the local draft before publishing or unpublishing this project.");
       return;
     }
-    if (action === "delete" && !confirmNavigation("Archive project")) return;
+    if (action === "delete") {
+      if (isDirty && !confirmNavigation("Archive project")) return;
+      if (!window.confirm(`Archive "${project.title}"? It will be removed from the public project list and can be restored later.`)) return;
+    }
     setError(""); setNotice(""); setPublishing(true);
     try {
       const response = await fetch(`${apiUrl}/api/v1/admin/projects/${project.id}${action === "delete" ? "" : `/${action}`}`, { method: action === "delete" ? "DELETE" : "POST", credentials: "include" });
