@@ -29,6 +29,7 @@ export type EditableProject = {
   client: string | null; industry: string | null; year: number | null; role: string | null;
   duration: string | null; platform: string | null; services: string[]; tools: string[];
   featured: boolean; nda: boolean; visibility: "PUBLIC" | "UNLISTED" | "PASSWORD_PROTECTED" | "PRIVATE"; status: string;
+  hasPassword?: boolean;
   updatedAt: string;
   blocks?: ProjectBlock[];
 };
@@ -37,6 +38,7 @@ type FormState = {
   title: string; slug: string; excerpt: string; description: string; client: string; industry: string;
   year: string; role: string; duration: string; platform: string; services: string; tools: string;
   featured: boolean; nda: boolean; visibility: EditableProject["visibility"]; status: string;
+  accessPassword: string;
 };
 
 const defaultCaseStudy: CaseStudyState = {
@@ -119,6 +121,7 @@ function initialState(project?: EditableProject): FormState {
     client: project?.client ?? "", industry: project?.industry ?? "", year: project?.year?.toString() ?? "", role: project?.role ?? "",
     duration: project?.duration ?? "", platform: project?.platform ?? "", services: project?.services.join(", ") ?? "", tools: project?.tools.join(", ") ?? "",
     featured: project?.featured ?? false, nda: project?.nda ?? false, visibility: project?.visibility ?? "PUBLIC", status: project?.status ?? "DRAFT",
+    accessPassword: "",
   };
 }
 
@@ -159,6 +162,7 @@ function asPayload(state: FormState) {
     client: text(state.client), industry: text(state.industry), year: state.year ? Number(state.year) : undefined,
     role: text(state.role), duration: text(state.duration), platform: text(state.platform), services: tags(state.services),
     tools: tags(state.tools), featured: state.featured, nda: state.nda, visibility: state.visibility,
+    ...(state.visibility === "PASSWORD_PROTECTED" && state.accessPassword ? { accessPassword: state.accessPassword } : {}),
   };
 }
 
@@ -486,6 +490,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
               <label className="cms-field">Visibility<select value={form.visibility} onChange={(event) => setField("visibility", event.target.value as FormState["visibility"])}><option value="PUBLIC">Public</option><option value="UNLISTED">Unlisted</option><option value="PRIVATE">Private</option><option value="PASSWORD_PROTECTED">Password protected</option></select></label>
               <label className="cms-field cms-field--wide">Services<input value={form.services} onChange={(event) => setField("services", event.target.value)} placeholder="Research, UX, UI design" /></label>
               <label className="cms-field cms-field--wide">Tools<input value={form.tools} onChange={(event) => setField("tools", event.target.value)} placeholder="Figma, FigJam, Maze" /></label>
+              {form.visibility === "PASSWORD_PROTECTED" && <label className="cms-field cms-field--wide">Case study password<input type="password" value={form.accessPassword} onChange={(event) => setField("accessPassword", event.target.value)} placeholder={project?.hasPassword ? "Leave blank to keep the current password" : "Enter at least 8 characters"} autoComplete="new-password" minLength={8} maxLength={256} required={!project?.hasPassword} /><small>{project?.hasPassword ? "A password is already set. Leave this blank to keep it, or enter a new password to replace it." : "Set a password before saving this project with password-protected visibility."}</small></label>}
             </div>
             <div className="cms-checkboxes"><label><input type="checkbox" checked={form.featured} onChange={(event) => setField("featured", event.target.checked)} />Featured project</label><label><input type="checkbox" checked={form.nda} onChange={(event) => setField("nda", event.target.checked)} />NDA restricted</label></div>
           </section>
