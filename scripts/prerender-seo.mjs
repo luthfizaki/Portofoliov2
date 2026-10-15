@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const dist = join(root, "dist");
 const siteUrl = "https://lyzastudio.my.id";
+const apiBase = (process.env.VITE_API_URL || "").replace(/\/+$/, "");
 const routes = {
   "/": {
     title: "Luthfi Arzaki | UI/UX Designer",
@@ -39,35 +40,84 @@ const routes = {
 };
 
 function escapeAttribute(value) {
-  return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
+async function resolveMetadata(route, fallback) {
+  if (!apiBase) return fallback;
+  const endpoint = route === "/"
+    ? "/api/v1/public/pages/home"
+    : `/api/v1/public/projects/${route.split("/").filter(Boolean).at(-1)}`;
+  try {
+    const response = await fetch(`${apiBase}${endpoint}`, {
+      headers: { accept: "application/json" },
+      cache: "no-store"
+    });
+    if (!response.ok) return fallback;
+    const payload = await response.json();
+    const seo = payload?.success === true ? payload?.data?.seo : null;
+    if (!seo || typeof seo !== "object") return fallback;
+
+    return {
+      ...fallback,
+      title: typeof seo.title === "string" && seo.title.trim() ? seo.title.trim() : fallback.title,
+      description: typeof seo.description === "string" && seo.description.trim() ? seo.description.trim() : fallback.description,
+      canonical: typeof seo.canonical === "string" && seo.canonical.trim() ? seo.canonical.trim() : fallback.canonical,
+      ogTitle: typeof seo.ogTitle === "string" && seo.ogTitle.trim() ? seo.ogTitle.trim() : undefined,
+      ogDescription: typeof seo.ogDescription === "string" && seo.ogDescription.trim() ? seo.ogDescription.trim() : undefined,
+      ogImageUrl: typeof seo.ogImageUrl === "string" && seo.ogImageUrl.trim() ? seo.ogImageUrl.trim() : undefined,
+      noIndex: seo.noIndex === true,
+      noFollow: seo.noFollow === true
+    };
+  } catch (error) {
+    console.warn(`SEO metadata fetch failed for ${route}; static metadata will be used.`, error);
+    return fallback;
+  }
 }
 
 function metadataHead(metadata) {
   const title = escapeAttribute(metadata.title);
   const description = escapeAttribute(metadata.description);
   const canonical = escapeAttribute(metadata.canonical);
-  return [
+  const ogTitle = escapeAttribute(metadata.ogTitle || metadata.title);
+  const ogDescription = escapeAttribute(metadata.ogDescription || metadata.description);
+  const tags = [
     `<title>${title}</title>`,
     `<meta name="description" content="${description}" />`,
     `<link rel="canonical" href="${canonical}" />`,
     `<meta property="og:type" content="${metadata.type}" />`,
-    `<meta property="og:title" content="${title}" />`,
-    `<meta property="og:description" content="${description}" />`,
+    `<meta property="og:title" content="${ogTitle}" />`,
+    `<meta property="og:description" content="${ogDescription}" />`,
     `<meta property="og:url" content="${canonical}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
-    `<meta name="twitter:title" content="${title}" />`,
-    `<meta name="twitter:description" content="${description}" />`
-  ].join("\n    ");
+    `<meta name="twitter:title" content="${ogTitle}" />`,
+    `<meta name="twitter:description" content="${ogDescription}" />`
+  ];
+  if (metadata.ogImageUrl) {
+    const image = escapeAttribute(metadata.ogImageUrl);
+    tags.push(`<meta property="og:image" content="${image}" />`);
+    tags.push(`<meta name="twitter:image" content="${image}" />`);
+  }
+  if (metadata.noIndex || metadata.noFollow) {
+    const robots = [metadata.noIndex ? "noindex" : "index", metadata.noFollow ? "nofollow" : "follow"].join(", ");
+    tags.push(`<meta name="robots" content="${robots}" />`);
+  }
+  return tags.join("\n    ");
 }
 
 const template = await readFile(join(dist, "index.html"), "utf8");
-for (const [route, metadata] of Object.entries(routes)) {
+const resolvedRoutes = await Promise.all(
+  Object.entries(routes).map(async ([route, fallback]) => [route, await resolveMetadata(route, fallback)])
+);
+
+for (const [route, metadata] of resolvedRoutes) {
   const html = template
     .replace(/<title>[\s\S]*?<\/title>/, "")
     .replace(/<meta name="description"[^>]*\/>/, "")
     .replace(/<link rel="canonical"[^>]*\/>/, "")
     .replace(/<meta property="og:[^"]+"[^>]*\/>/g, "")
     .replace(/<meta name="twitter:[^"]+"[^>]*\/>/g, "")
+    .replace(/<meta name="robots"[^>]*\/>/g, "")
     .replace("</head>", `    ${metadataHead(metadata)}\n  </head>`);
   const output = route === "/" ? join(dist, "index.html") : join(dist, route.slice(1), "index.html");
   await mkdir(dirname(output), { recursive: true });
