@@ -334,7 +334,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
   }
 
   function downloadDraft() {
-    const blob = new Blob([draftJson(asPayload(form), blocksPayload(savedProject, caseStudy).blocks)], { type: "application/json" });
+    const blob = new Blob([draftJson(asPayload(form, false), blocksPayload(savedProject, caseStudy).blocks)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
