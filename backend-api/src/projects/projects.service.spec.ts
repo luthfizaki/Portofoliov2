@@ -409,3 +409,53 @@ test("rejects empty, null, and array block content while allowing explicit featu
   await deletion.service.replaceBlocks("project-1", [{ type: "CASE_FEATURE", content: {}, delete: true }]);
   assert.equal(deletion.calls.includes("projectBlock.deleteMany"), true);
 });
+
+test("lists archived projects separately without exposing active projects", async () => {
+  const deletedAt = new Date("2026-10-14T10:00:00.000Z");
+  const updatedAt = new Date("2026-10-13T10:00:00.000Z");
+  const queries: Array<{ method: string; args: Record<string, unknown> }> = [];
+  const archivedRow = {
+    id: "project-archived",
+    title: "Archived project",
+    slug: "archived-project",
+    industry: null,
+    status: "PUBLISHED",
+    updatedAt,
+    deletedAt,
+    categories: [{ category: { name: "Product Design" } }],
+  };
+  const prisma = {
+    project: {
+      findMany: async (args: Record<string, unknown>) => {
+        queries.push({ method: "findMany", args });
+        return [archivedRow];
+      },
+      count: async (args: Record<string, unknown>) => {
+        queries.push({ method: "count", args });
+        return 1;
+      },
+    },
+    $transaction: async (operations: Array<Promise<unknown>>) => Promise.all(operations),
+  };
+  const service = new ProjectsService(prisma as never);
+
+  const result = await service.listArchived("12");
+
+  assert.deepEqual(result, {
+    success: true,
+    data: [{
+      id: "project-archived",
+      title: "Archived project",
+      slug: "archived-project",
+      type: "Product Design",
+      status: "PUBLISHED",
+      updatedAt,
+      deletedAt,
+    }],
+    meta: { total: 1, limit: 12 },
+  });
+  assert.equal(queries.length, 2);
+  assert.deepEqual(queries[0].args.where, { deletedAt: { not: null } });
+  assert.equal(queries[0].args.take, 12);
+  assert.deepEqual(queries[1].args.where, { deletedAt: { not: null } });
+});
