@@ -169,8 +169,9 @@ export class ProjectsService {
         } else if (current.visibility !== ProjectVisibility.PASSWORD_PROTECTED || !current.passwordHash) {
           throw this.projectPasswordRequired();
         }
-      } else {
-        // A password must not remain effective after switching back to another visibility.
+      } else if (current.visibility === ProjectVisibility.PASSWORD_PROTECTED || dto.visibility !== undefined) {
+        // Clear credentials when explicitly switching away from protection, but
+        // avoid adding unrelated writes to ordinary metadata-only edits.
         data.passwordHash = null;
       }
 
