@@ -36,6 +36,7 @@ const usersById = new Map([
 
 const projects = {
   list: (limit?: string) => ({ operation: "projects.list", limit }),
+  listArchived: (limit?: string) => ({ operation: "projects.listArchived", limit }),
   get: (id: string) => ({ operation: "projects.get", id }),
   create: (dto: unknown) => ({ operation: "projects.create", dto }),
   update: (id: string, dto: unknown) => ({ operation: "projects.update", id, dto }),
@@ -200,6 +201,11 @@ async function assertStatus(response: Response, status: number) {
 
 test("projects enforce unauthenticated, viewer, editor publish, archive, and restore HTTP policies", async () => {
   await assertStatus(await jsonRequest("/api/v1/admin/projects"), 401);
+  await assertStatus(await jsonRequest("/api/v1/admin/projects/archived"), 401);
+
+  const archived = await jsonRequest("/api/v1/admin/projects/archived?limit=20", {}, "viewer");
+  await assertStatus(archived, 200);
+  assert.deepEqual(await archived.json(), { operation: "projects.listArchived", limit: "20" });
 
   const read = await jsonRequest("/api/v1/admin/projects/project-1", {}, "viewer");
   await assertStatus(read, 200);
