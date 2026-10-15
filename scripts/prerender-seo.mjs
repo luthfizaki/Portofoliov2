@@ -53,8 +53,19 @@ async function resolveMetadata(route, fallback) {
       headers: { accept: "application/json" },
       cache: "no-store"
     });
-    if (!response.ok) return fallback;
-    const payload = await response.json();
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      if (response.status === 403 && payload?.code === "PASSWORD_REQUIRED") {
+        return {
+          ...fallback,
+          title: "Protected Case Study | Luthfi Arzaki",
+          description: "This case study is password protected.",
+          noIndex: true,
+          noFollow: true
+        };
+      }
+      return fallback;
+    }
     const seo = payload?.success === true ? payload?.data?.seo : null;
     if (!seo || typeof seo !== "object") return fallback;
 
