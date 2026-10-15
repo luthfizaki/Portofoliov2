@@ -3,11 +3,12 @@ import { UserRole } from "@prisma/client";
 import { Roles } from "../auth/roles.decorator";
 import { RolesGuard } from "../auth/roles.guard";
 import { SessionGuard } from "../auth/session.guard";
+import { CmsPreviewReadOnlyInterceptor } from "../security/cms-preview-read-only.interceptor";
 import { CreateSkillDto, SkillFieldsDto } from "./dto/skill.dto";
 import { SkillsService } from "./skills.service";
 
 @Controller("admin/skills")
-@UseGuards(SessionGuard, RolesGuard)
+@UseGuards(SessionGuard, RolesGuard, CmsPreviewReadOnlyInterceptor)
 export class SkillsController {
   constructor(private readonly skills: SkillsService) {}
 

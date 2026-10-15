@@ -3,11 +3,12 @@ import { UserRole } from "@prisma/client";
 import { Roles } from "../auth/roles.decorator";
 import { RolesGuard } from "../auth/roles.guard";
 import { SessionGuard } from "../auth/session.guard";
+import { CmsPreviewReadOnlyInterceptor } from "../security/cms-preview-read-only.interceptor";
 import { CreateExperienceDto, ExperienceFieldsDto } from "./dto/experience.dto";
 import { ExperiencesService } from "./experiences.service";
 
 @Controller("admin/experiences")
-@UseGuards(SessionGuard, RolesGuard)
+@UseGuards(SessionGuard, RolesGuard, CmsPreviewReadOnlyInterceptor)
 export class ExperiencesController {
   constructor(private readonly experiences: ExperiencesService) {}
 

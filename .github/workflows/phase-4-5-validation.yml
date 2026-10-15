@@ -1,0 +1,54 @@
+name: Phase 4.5 Preview Write Safety Validation
+
+on:
+  push:
+    branches:
+      - security/phase-4-5-preview-write-safety
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  backend-tests-and-builds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @portfoliov2/backend-api prisma:generate
+
+      - name: Run backend unit and HTTP tests
+        working-directory: backend-api
+        shell: bash
+        run: |
+          mapfile -t test_files < <(find src -type f -name '*.spec.ts' | sort)
+          if [ "${#test_files[@]}" -eq 0 ]; then
+            echo "No backend spec files were found." >&2
+            exit 1
+          fi
+          pnpm exec tsx --test "${test_files[@]}"
+
+      - name: Build backend
+        run: pnpm --filter @portfoliov2/backend-api build
+
+      - name: Build CMS
+        run: pnpm --filter @portfoliov2/cms-admin build
+
+      - name: Build portfolio
+        run: pnpm build
