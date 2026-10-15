@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Post, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { UserRole } from "@prisma/client";
 import { Roles } from "../auth/roles.decorator";
@@ -6,11 +6,24 @@ import { RolesGuard } from "../auth/roles.guard";
 import { SessionGuard } from "../auth/session.guard";
 import { isSupportedMediaMimeType, MAX_MEDIA_FILE_SIZE, type UploadedMediaFile } from "./media-validation";
 import { MediaService } from "./media.service";
+import { UpdateMediaMetadataDto } from "./dto/update-media-metadata.dto";
 
 @Controller("admin/media")
 @UseGuards(SessionGuard, RolesGuard)
 export class MediaController {
   constructor(private readonly media: MediaService) {}
+
+  @Get()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.EDITOR, UserRole.VIEWER)
+  list(@Query("page") page?: string, @Query("limit") limit?: string, @Query("type") type?: string, @Query("q") q?: string) {
+    return this.media.list({ page, limit, type, q });
+  }
+
+  @Patch(":id/metadata")
+  @Roles(UserRole.SUPER_ADMIN, UserRole.EDITOR)
+  updateMetadata(@Param("id") id: string, @Body() dto: UpdateMediaMetadataDto) {
+    return this.media.updateMetadata(id, dto);
+  }
 
   @Post("upload")
   @Roles(UserRole.SUPER_ADMIN, UserRole.EDITOR)

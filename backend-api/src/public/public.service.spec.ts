@@ -30,6 +30,7 @@ type ProjectStub = {
   tags: Array<{ tag: { name: string; slug: string } }>;
   metrics: Array<{ value: string; label: string; note: string | null; sortOrder: number }>;
   blocks: Array<{ type: string; title: string | null; content: Record<string, unknown>; sortOrder: number; layoutVariant: string | null }>;
+  seo?: { title: string | null; description: string | null; canonical: string | null; ogTitle: string | null; ogDescription: string | null; ogImageUrl: string | null; noIndex: boolean; noFollow: boolean; jsonLd?: Record<string, unknown> | null } | null;
 };
 
 function project(overrides: Partial<ProjectStub> = {}): ProjectStub {
@@ -59,6 +60,7 @@ function project(overrides: Partial<ProjectStub> = {}): ProjectStub {
     tags: [{ tag: { name: "UX", slug: "ux" } }],
     metrics: [{ value: "30%", label: "Improvement", note: null, sortOrder: 0 }],
     blocks: [{ type: "CASE_HERO", title: "Hero", content: { lede: "Sensitive case study content" }, sortOrder: 0, layoutVariant: null }],
+    seo: { title: "SEO title", description: "SEO description", canonical: "https://lyzastudio.my.id/case-study/protected-case-study", ogTitle: "Social title", ogDescription: "Social description", ogImageUrl: "https://assets.example.test/og.png", noIndex: true, noFollow: false, jsonLd: { privateField: "must not leak" } },
     ...overrides,
   };
 }
@@ -101,6 +103,16 @@ test("public project lists query PUBLIC visibility only", async () => {
   assert.equal(listCalls.length, 2);
   assert.deepEqual((listCalls[0].where as Record<string, unknown>).visibility, "PUBLIC");
   assert.deepEqual((listCalls[1].where as Record<string, unknown>).visibility, "PUBLIC");
+});
+
+test("public case study SEO is exposed through an allowlist", async () => {
+  const record = project({ visibility: "PUBLIC" });
+  const { service } = makeService(record);
+  const result = await service.project(record.slug);
+  assert.equal(result.data.seo?.title, "SEO title");
+  assert.equal(result.data.seo?.noIndex, true);
+  assert.equal("jsonLd" in (result.data.seo ?? {}), false);
+  assert.equal(JSON.stringify(result).includes("must not leak"), false);
 });
 
 test("public case study response never contains passwordHash", async () => {
