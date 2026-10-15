@@ -43,6 +43,23 @@ function backendResponse(status: number, body: unknown, cookies: string[] = []) 
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+test("proxy omits the bypass header when no server-only secret is configured", async () => {
+  const previous = process.env.BACKEND_VERCEL_PROTECTION_BYPASS_SECRET;
+  delete process.env.BACKEND_VERCEL_PROTECTION_BYPASS_SECRET;
+  try {
+    await withBackendResponse(
+      backendResponse(200, { success: true, data: null }),
+      async (calls) => {
+        const response = await POST(refreshRequest(), context());
+        assert.equal(response.status, 200);
+        assert.equal(new Headers(calls[0][1]?.headers).has("x-vercel-protection-bypass"), false);
+      },
+    );
+  } finally {
+    if (previous !== undefined) process.env.BACKEND_VERCEL_PROTECTION_BYPASS_SECRET = previous;
+  }
+});
+
 test("server-side proxy adds the configured Vercel protection bypass header", async () => {
   const previous = process.env.BACKEND_VERCEL_PROTECTION_BYPASS_SECRET;
   process.env.BACKEND_VERCEL_PROTECTION_BYPASS_SECRET = "test-only-protection-token";

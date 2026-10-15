@@ -4,4 +4,8 @@ export function assetUrl(value?: string) {
   return value.startsWith("/") ? value : `/${value}`;
 }
 
-export const publicApiUrl = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:4000";
+const configuredPublicApiUrl = import.meta.env.VITE_API_URL?.trim();
+
+export const publicApiUrl = configuredPublicApiUrl
+  ? configuredPublicApiUrl.replace(/\/+$/, "")
+  : "http://127.0.0.1:4000";
