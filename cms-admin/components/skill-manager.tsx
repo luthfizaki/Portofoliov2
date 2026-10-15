@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Check, Gauge, Plus, RefreshCw, Save, Sparkles } from "lucide-react";
+import { Archive, Check, Gauge, Plus, RefreshCw, RotateCcw, Save, Sparkles } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 import { apiUrl } from "../lib/api";
 
@@ -117,6 +117,7 @@ export function SkillManager({ initialRows }: { initialRows: SkillRow[] }) {
 
   async function archiveCurrent() {
     if (!form.id) return;
+    if (!window.confirm("Archive this skill? It will be removed from the public Skills section and remain in the CMS for restoration.")) return;
     setSaving(true);
     setError("");
     setNotice("");
@@ -130,6 +131,34 @@ export function SkillManager({ initialRows }: { initialRows: SkillRow[] }) {
       await refreshRows();
       setForm(emptyForm);
       setNotice("Skill archived and frontend section synced.");
+    } catch {
+      setError("CMS API is unavailable. Start backend service and try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function restoreCurrent() {
+    if (!form.id || form.status !== "ARCHIVED") return;
+    if (!window.confirm("Restore this skill as a draft? It will stay off the public site until you publish it.")) return;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/admin/skills/${form.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: "DRAFT" }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body?.success) {
+        setError(body?.message ?? "Unable to restore skill.");
+        return;
+      }
+      await refreshRows();
+      setForm((current) => ({ ...current, status: "DRAFT" }));
+      setNotice("Skill restored as a draft.");
     } catch {
       setError("CMS API is unavailable. Start backend service and try again.");
     } finally {
@@ -184,7 +213,7 @@ export function SkillManager({ initialRows }: { initialRows: SkillRow[] }) {
 
           {error && <p className="cms-form-message cms-form-message--error" role="alert">{error}</p>}
           {notice && <p className="cms-form-message">{notice}</p>}
-          {form.id && <button className="cms-experience-archive" type="button" onClick={archiveCurrent} disabled={saving}><Archive size={15} />Archive this skill</button>}
+          {form.id && form.status === "ARCHIVED" ? <button className="cms-secondary-action" type="button" onClick={restoreCurrent} disabled={saving}><RotateCcw size={15} />Restore as draft</button> : form.id ? <button className="cms-experience-archive" type="button" onClick={archiveCurrent} disabled={saving}><Archive size={15} />Archive this skill</button> : null}
         </form>
       </div>
     </div>
