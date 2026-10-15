@@ -7,6 +7,11 @@ export type SeoMetadata = {
   description: string;
   canonical: string;
   type: "website" | "article";
+  ogTitle?: string;
+  ogDescription?: string;
+  ogImageUrl?: string;
+  noIndex?: boolean;
+  noFollow?: boolean;
 };
 
 const caseStudyMetadata: Record<string, SeoMetadata> = {
@@ -50,17 +55,36 @@ function setMeta(name: string, content: string, attribute = "name") {
   element.setAttribute("content", content);
 }
 
-export function SEO({ title, description, canonical, type }: SeoMetadata) {
+export function SEO({
+  title,
+  description,
+  canonical,
+  type,
+  ogTitle,
+  ogDescription,
+  ogImageUrl,
+  noIndex = false,
+  noFollow = false,
+}: SeoMetadata) {
   useEffect(() => {
     document.title = title;
     setMeta("description", description);
     setMeta("og:type", type, "property");
-    setMeta("og:title", title, "property");
-    setMeta("og:description", description, "property");
+    setMeta("og:title", ogTitle || title, "property");
+    setMeta("og:description", ogDescription || description, "property");
     setMeta("og:url", canonical, "property");
     setMeta("twitter:card", "summary_large_image");
-    setMeta("twitter:title", title);
-    setMeta("twitter:description", description);
+    setMeta("twitter:title", ogTitle || title);
+    setMeta("twitter:description", ogDescription || description);
+    setMeta("robots", [noIndex ? "noindex" : "index", noFollow ? "nofollow" : "follow"].join(", "));
+
+    if (ogImageUrl) {
+      setMeta("og:image", ogImageUrl, "property");
+      setMeta("twitter:image", ogImageUrl);
+    } else {
+      document.head.querySelector('meta[property="og:image"]')?.remove();
+      document.head.querySelector('meta[name="twitter:image"]')?.remove();
+    }
 
     let link = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
     if (!link) {
@@ -69,7 +93,7 @@ export function SEO({ title, description, canonical, type }: SeoMetadata) {
       document.head.appendChild(link);
     }
     link.href = canonical;
-  }, [canonical, description, title, type]);
+  }, [canonical, description, noFollow, noIndex, ogDescription, ogImageUrl, ogTitle, title, type]);
 
   return null;
 }

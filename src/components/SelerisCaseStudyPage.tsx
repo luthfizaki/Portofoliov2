@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { publicApiUrl } from "../lib/apiBase";
 import { CaseFeature, CaseFeatureImage } from "./CaseFeature";
+import { SEO } from "./SEO";
 
 const fallbackDeliverables = [
   "MOBILE FLOWS",
@@ -30,6 +31,16 @@ type PublicProject = {
   coverUrl: string | null;
   coverAlt: string | null;
   blocks: ProjectBlock[];
+  seo?: {
+    title: string | null;
+    description: string | null;
+    canonical: string | null;
+    ogTitle: string | null;
+    ogDescription: string | null;
+    ogImageUrl: string | null;
+    noIndex: boolean;
+    noFollow: boolean;
+  } | null;
 };
 
 const allowCaseStudyFallback = import.meta.env.DEV;
@@ -286,6 +297,19 @@ export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: str
 
   return (
     <main className={`case-study case-study--${slug}`} aria-labelledby="case-study-title">
+      {project && (
+        <SEO
+          title={project.seo?.title || project.title || content.title}
+          description={project.seo?.description || project.excerpt || project.description || content.lede}
+          canonical={project.seo?.canonical || `https://lyzastudio.my.id/case-study/${project.slug || slug}`}
+          type="article"
+          ogTitle={project.seo?.ogTitle || undefined}
+          ogDescription={project.seo?.ogDescription || undefined}
+          ogImageUrl={project.seo?.ogImageUrl || undefined}
+          noIndex={project.seo?.noIndex ?? false}
+          noFollow={project.seo?.noFollow ?? false}
+        />
+      )}
       <section className="case-study__hero">
         <div className="case-study__ambient case-study__ambient--hero" />
         <div className="case-study__container">
