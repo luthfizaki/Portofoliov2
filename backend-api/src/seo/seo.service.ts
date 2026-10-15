@@ -98,15 +98,24 @@ export class SeoService {
       });
     }
 
-    const data: Prisma.SeoMetadataUncheckedUpdateInput = {};
-    if (dto.title !== undefined) data.title = this.normalizeText(dto.title, "title", 70);
-    if (dto.description !== undefined) data.description = this.normalizeText(dto.description, "description", 320);
-    if (dto.canonical !== undefined) data.canonical = this.normalizeUrl(dto.canonical, "canonical");
-    if (dto.ogTitle !== undefined) data.ogTitle = this.normalizeText(dto.ogTitle, "ogTitle", 70);
-    if (dto.ogDescription !== undefined) data.ogDescription = this.normalizeText(dto.ogDescription, "ogDescription", 320);
-    if (dto.ogImageUrl !== undefined) data.ogImageUrl = this.normalizeUrl(dto.ogImageUrl, "ogImageUrl");
-    if (dto.noIndex !== undefined) data.noIndex = dto.noIndex;
-    if (dto.noFollow !== undefined) data.noFollow = dto.noFollow;
+    const values: {
+      title?: string | null;
+      description?: string | null;
+      canonical?: string | null;
+      ogTitle?: string | null;
+      ogDescription?: string | null;
+      ogImageUrl?: string | null;
+      noIndex?: boolean;
+      noFollow?: boolean;
+    } = {};
+    if (dto.title !== undefined) values.title = this.normalizeText(dto.title, "title", 70);
+    if (dto.description !== undefined) values.description = this.normalizeText(dto.description, "description", 320);
+    if (dto.canonical !== undefined) values.canonical = this.normalizeUrl(dto.canonical, "canonical");
+    if (dto.ogTitle !== undefined) values.ogTitle = this.normalizeText(dto.ogTitle, "ogTitle", 70);
+    if (dto.ogDescription !== undefined) values.ogDescription = this.normalizeText(dto.ogDescription, "ogDescription", 320);
+    if (dto.ogImageUrl !== undefined) values.ogImageUrl = this.normalizeUrl(dto.ogImageUrl, "ogImageUrl");
+    if (dto.noIndex !== undefined) values.noIndex = dto.noIndex;
+    if (dto.noFollow !== undefined) values.noFollow = dto.noFollow;
 
     let saved;
     if (entityType === "page") {
@@ -114,16 +123,16 @@ export class SeoService {
       if (!parent) throw this.notFound();
       saved = await this.prisma.seoMetadata.upsert({
         where: { pageId: id },
-        create: { pageId: id, ...data },
-        update: data,
+        create: { pageId: id, ...values },
+        update: values,
       });
     } else {
       const parent = await this.prisma.project.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
       if (!parent) throw this.notFound();
       saved = await this.prisma.seoMetadata.upsert({
         where: { projectId: id },
-        create: { projectId: id, ...data },
-        update: data,
+        create: { projectId: id, ...values },
+        update: values,
       });
     }
 
