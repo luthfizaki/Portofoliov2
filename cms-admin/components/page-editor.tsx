@@ -425,7 +425,7 @@ export function PageEditor({ page, user }: { page: EditablePage; user: SessionUs
               {uploading === fieldKey ? "Uploading" : "Upload file"}
               <input
                 type="file"
-                accept="image/*,application/pdf,video/*"
+                accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file) void uploadAsset(sectionId, path, file);

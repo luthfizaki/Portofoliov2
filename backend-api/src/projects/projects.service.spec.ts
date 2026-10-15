@@ -1,17 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import * as argon2 from "argon2";
 import { BadRequestException, ConflictException } from "@nestjs/common";
 import { ProjectsService } from "./projects.service";
 
 type MockOptions = {
   blocks?: Array<Record<string, unknown>>;
   failOn?: "projectBlock.update" | "projectBlock.createMany";
+  currentVisibility?: "PUBLIC" | "PASSWORD_PROTECTED";
+  passwordHash?: string | null;
 };
 
 function makeHarness(options: MockOptions = {}) {
   const updatedAt = new Date("2026-01-01T00:00:00.000Z");
   const calls: string[] = [];
   const clientRefs: object[] = [];
+  let lastProjectWrite: Record<string, unknown> | null = null;
   const existingBlocks = options.blocks ?? [{
     id: "hero-1",
     type: "CASE_HERO",
@@ -62,7 +66,8 @@ function makeHarness(options: MockOptions = {}) {
     title: "Original project",
     slug: "original-project",
     featured: false,
-    visibility: "PUBLIC",
+    visibility: options.currentVisibility ?? "PUBLIC",
+    passwordHash: options.passwordHash ?? null,
     status: "DRAFT",
     deletedAt: null,
     publishedAt: null,
@@ -78,11 +83,13 @@ function makeHarness(options: MockOptions = {}) {
       count: async () => 0,
       create: async ({ data }: { data: Record<string, unknown> }) => {
         calls.push("project.create");
+        lastProjectWrite = { ...data };
         return { ...current, ...data, id: "project-new", updatedAt };
       },
       update: async ({ data }: { data: Record<string, unknown> }) => {
         calls.push("project.update");
         clientRefs.push(transaction);
+        lastProjectWrite = { ...data };
         return { ...current, ...data };
       },
       findUniqueOrThrow: async () => ({ ...current, blocks: existingBlocks, categories: [] }),
@@ -135,6 +142,7 @@ function makeHarness(options: MockOptions = {}) {
     clientRefs,
     current,
     existingBlocks,
+    get lastProjectWrite() { return lastProjectWrite; },
     get committed() { return committed; },
     get rolledBack() { return rolledBack; },
   };
@@ -408,4 +416,123 @@ test("rejects empty, null, and array block content while allowing explicit featu
   }] });
   await deletion.service.replaceBlocks("project-1", [{ type: "CASE_FEATURE", content: {}, delete: true }]);
   assert.equal(deletion.calls.includes("projectBlock.deleteMany"), true);
+});
+
+test("lists archived projects separately without exposing active projects", async () => {
+  const deletedAt = new Date("2026-10-14T10:00:00.000Z");
+  const updatedAt = new Date("2026-10-13T10:00:00.000Z");
+  const queries: Array<{ method: string; args: Record<string, unknown> }> = [];
+  const archivedRow = {
+    id: "project-archived",
+    title: "Archived project",
+    slug: "archived-project",
+    industry: null,
+    status: "PUBLISHED",
+    updatedAt,
+    deletedAt,
+    categories: [{ category: { name: "Product Design" } }],
+  };
+  const prisma = {
+    project: {
+      findMany: async (args: Record<string, unknown>) => {
+        queries.push({ method: "findMany", args });
+        return [archivedRow];
+      },
+      count: async (args: Record<string, unknown>) => {
+        queries.push({ method: "count", args });
+        return 1;
+      },
+    },
+    $transaction: async (operations: Array<Promise<unknown>>) => Promise.all(operations),
+  };
+  const service = new ProjectsService(prisma as never);
+
+  const result = await service.listArchived("12");
+
+  assert.deepEqual(result, {
+    success: true,
+    data: [{
+      id: "project-archived",
+      title: "Archived project",
+      slug: "archived-project",
+      type: "Product Design",
+      status: "PUBLISHED",
+      updatedAt,
+      deletedAt,
+    }],
+    meta: { total: 1, limit: 12 },
+  });
+  assert.equal(queries.length, 2);
+  assert.deepEqual(queries[0].args.where, { deletedAt: { not: null } });
+  assert.equal(queries[0].args.take, 12);
+  assert.deepEqual(queries[1].args.where, { deletedAt: { not: null } });
+});
+
+test("password-protected project creation requires a password and validates its length", async () => {
+  const missing = makeHarness();
+  await assert.rejects(
+    () => missing.service.create({ title: "Protected project", visibility: "PASSWORD_PROTECTED" }),
+    (error: unknown) => error instanceof BadRequestException
+      && (error.getResponse() as Record<string, unknown>).code === "PROJECT_PASSWORD_REQUIRED",
+  );
+  assert.deepEqual(missing.calls, []);
+
+  const short = makeHarness();
+  await assert.rejects(
+    () => short.service.create({ title: "Protected project", visibility: "PASSWORD_PROTECTED", accessPassword: "short" }),
+    (error: unknown) => error instanceof BadRequestException
+      && (error.getResponse() as Record<string, unknown>).code === "INVALID_PROJECT_PASSWORD",
+  );
+  assert.deepEqual(short.calls, []);
+});
+
+test("password-protected project creation stores only an Argon2id hash and does not return the hash", async () => {
+  const harness = makeHarness();
+  const password = "correct horse battery staple";
+  const result = await harness.service.create({
+    title: "Protected project",
+    visibility: "PASSWORD_PROTECTED",
+    accessPassword: password,
+  });
+
+  assert.equal(harness.lastProjectWrite?.visibility, "PASSWORD_PROTECTED");
+  assert.equal(typeof harness.lastProjectWrite?.passwordHash, "string");
+  assert.notEqual(harness.lastProjectWrite?.passwordHash, password);
+  assert.equal(await argon2.verify(harness.lastProjectWrite?.passwordHash as string, password), true);
+  assert.equal(result.data.hasPassword, true);
+  assert.equal("passwordHash" in result.data, false);
+  assert.equal("accessPassword" in result.data, false);
+});
+
+test("switching a project to password-protected visibility requires a new password", async () => {
+  const harness = makeHarness();
+  await assert.rejects(
+    () => harness.service.update("project-1", { visibility: "PASSWORD_PROTECTED" }),
+    (error: unknown) => error instanceof BadRequestException
+      && (error.getResponse() as Record<string, unknown>).code === "PROJECT_PASSWORD_REQUIRED",
+  );
+  assert.equal(harness.calls.includes("project.update"), false);
+  assert.equal(harness.rolledBack, true);
+});
+
+test("protected project password can be rotated and is never returned by the API", async () => {
+  const existingHash = await argon2.hash("previous valid password");
+  const harness = makeHarness({ currentVisibility: "PASSWORD_PROTECTED", passwordHash: existingHash });
+  const password = "new password with enough length";
+  const result = await harness.service.update("project-1", { accessPassword: password });
+
+  assert.equal(await argon2.verify(harness.lastProjectWrite?.passwordHash as string, password), true);
+  assert.equal(result.data.hasPassword, true);
+  assert.equal("passwordHash" in result.data, false);
+  assert.equal("accessPassword" in result.data, false);
+});
+
+test("leaving password-protected visibility clears the stored password hash", async () => {
+  const existingHash = await argon2.hash("previous valid password");
+  const harness = makeHarness({ currentVisibility: "PASSWORD_PROTECTED", passwordHash: existingHash });
+  const result = await harness.service.update("project-1", { visibility: "PUBLIC" });
+
+  assert.equal(harness.lastProjectWrite?.passwordHash, null);
+  assert.equal(result.data.hasPassword, false);
+  assert.equal("passwordHash" in result.data, false);
 });

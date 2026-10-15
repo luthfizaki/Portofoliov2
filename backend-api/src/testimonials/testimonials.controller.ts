@@ -3,11 +3,12 @@ import { UserRole } from "@prisma/client";
 import { Roles } from "../auth/roles.decorator";
 import { RolesGuard } from "../auth/roles.guard";
 import { SessionGuard } from "../auth/session.guard";
+import { CmsPreviewReadOnlyInterceptor } from "../security/cms-preview-read-only.interceptor";
 import { CreateTestimonialDto, TestimonialFieldsDto } from "./dto/testimonial.dto";
 import { TestimonialsService } from "./testimonials.service";
 
 @Controller("admin/testimonials")
-@UseGuards(SessionGuard, RolesGuard)
+@UseGuards(SessionGuard, RolesGuard, CmsPreviewReadOnlyInterceptor)
 export class TestimonialsController {
   constructor(private readonly testimonials: TestimonialsService) {}
 

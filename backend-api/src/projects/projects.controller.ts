@@ -3,11 +3,12 @@ import { UserRole } from "@prisma/client";
 import { Roles } from "../auth/roles.decorator";
 import { RolesGuard } from "../auth/roles.guard";
 import { SessionGuard } from "../auth/session.guard";
+import { CmsPreviewReadOnlyInterceptor } from "../security/cms-preview-read-only.interceptor";
 import { CreateProjectDto, ProjectFieldsDto, ReplaceProjectBlocksDto } from "./dto/project.dto";
 import { ProjectsService } from "./projects.service";
 
 @Controller("admin/projects")
-@UseGuards(SessionGuard, RolesGuard)
+@UseGuards(SessionGuard, RolesGuard, CmsPreviewReadOnlyInterceptor)
 export class ProjectsController {
   constructor(private readonly projects: ProjectsService) {}
 
@@ -21,6 +22,12 @@ export class ProjectsController {
   @Roles(UserRole.SUPER_ADMIN, UserRole.EDITOR)
   create(@Body() dto: CreateProjectDto) {
     return this.projects.create(dto);
+  }
+
+  @Get("archived")
+  @Roles(UserRole.SUPER_ADMIN, UserRole.EDITOR, UserRole.VIEWER)
+  listArchived(@Query("limit") limit?: string) {
+    return this.projects.listArchived(limit);
   }
 
   @Get(":id")

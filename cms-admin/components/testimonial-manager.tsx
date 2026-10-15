@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Check, MessageSquareQuote, Plus, RefreshCw, Save, Star } from "lucide-react";
+import { Archive, Check, MessageSquareQuote, Plus, RefreshCw, RotateCcw, Save, Star } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 import { apiUrl } from "../lib/api";
 
@@ -136,6 +136,7 @@ export function TestimonialManager({ initialRows }: { initialRows: TestimonialRo
 
   async function archiveCurrent() {
     if (!form.id) return;
+    if (!window.confirm("Archive this testimonial? It will be removed from the public testimonial section and remain in the CMS for restoration.")) return;
     setSaving(true);
     setError("");
     setNotice("");
@@ -149,6 +150,34 @@ export function TestimonialManager({ initialRows }: { initialRows: TestimonialRo
       await refreshRows();
       setForm(emptyForm);
       setNotice("Testimonial archived and frontend section synced.");
+    } catch {
+      setError("CMS API is unavailable. Start backend service and try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function restoreCurrent() {
+    if (!form.id || form.status !== "ARCHIVED") return;
+    if (!window.confirm("Restore this testimonial as a draft? It will stay off the public site until you publish it.")) return;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/admin/testimonials/${form.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: "DRAFT" }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body?.success) {
+        setError(body?.message ?? "Unable to restore testimonial.");
+        return;
+      }
+      await refreshRows();
+      setForm((current) => ({ ...current, status: "DRAFT" }));
+      setNotice("Testimonial restored as a draft.");
     } catch {
       setError("CMS API is unavailable. Start backend service and try again.");
     } finally {
@@ -206,7 +235,7 @@ export function TestimonialManager({ initialRows }: { initialRows: TestimonialRo
 
           {error && <p className="cms-form-message cms-form-message--error" role="alert">{error}</p>}
           {notice && <p className="cms-form-message">{notice}</p>}
-          {form.id && <button className="cms-experience-archive" type="button" onClick={archiveCurrent} disabled={saving}><Archive size={15} />Archive this testimonial</button>}
+          {form.id && form.status === "ARCHIVED" ? <button className="cms-secondary-action" type="button" onClick={restoreCurrent} disabled={saving}><RotateCcw size={15} />Restore as draft</button> : form.id ? <button className="cms-experience-archive" type="button" onClick={archiveCurrent} disabled={saving}><Archive size={15} />Archive this testimonial</button> : null}
         </form>
       </div>
     </div>

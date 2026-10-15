@@ -1,4 +1,4 @@
-import { ArrowUpRight, Filter, FolderKanban, Plus, Search } from "lucide-react";
+import { Archive, ArrowUpRight, Filter, FolderKanban, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CmsWorkspace } from "../../components/cms-workspace";
@@ -28,7 +28,7 @@ export default async function ProjectsPage() {
         <section className="cms-module-card">
           <header className="cms-module-card__header">
             <div><h2>All Projects</h2><p>Organize, publish, and update portfolio work.</p></div>
-            <div className="cms-module-tools"><label><Search size={16} /><input aria-label="Search projects" placeholder="Search projects..." /></label><button type="button"><Filter size={16} />Filter</button></div>
+            <div className="cms-module-tools"><label><Search size={16} /><input aria-label="Search projects" placeholder="Search projects..." /></label><Link className="cms-secondary-action" href="/projects/archived"><Archive size={15} />Archived</Link><button type="button"><Filter size={16} />Filter</button></div>
           </header>
           <div className="cms-modern-table cms-modern-table--projects">
             <div className="cms-modern-table__head"><span>Project</span><span>Type</span><span>Status</span><span>Updated</span><span /></div>

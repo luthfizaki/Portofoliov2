@@ -3,11 +3,12 @@ import { UserRole } from "@prisma/client";
 import { Roles } from "../auth/roles.decorator";
 import { RolesGuard } from "../auth/roles.guard";
 import { SessionGuard } from "../auth/session.guard";
+import { CmsPreviewReadOnlyInterceptor } from "../security/cms-preview-read-only.interceptor";
 import { UpdatePageSectionDto, UpdatePageSectionVisibilityDto } from "./dto/update-page-section.dto";
 import { PagesService } from "./pages.service";
 
 @Controller("admin/pages")
-@UseGuards(SessionGuard, RolesGuard)
+@UseGuards(SessionGuard, RolesGuard, CmsPreviewReadOnlyInterceptor)
 export class PagesController {
   constructor(private readonly pages: PagesService) {}
 

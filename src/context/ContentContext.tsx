@@ -159,9 +159,20 @@ export interface SkillsContent {
   }>;
 }
 
+interface PublicSeoMetadata {
+  title: string | null;
+  description: string | null;
+  canonical: string | null;
+  ogTitle: string | null;
+  ogDescription: string | null;
+  ogImageUrl: string | null;
+  noIndex: boolean;
+  noFollow: boolean;
+}
+
 interface PublicPageResponse {
   success: boolean;
-  data: { sections: Array<{ type: string; content: unknown }> };
+  data: { sections: Array<{ type: string; content: unknown }>; seo?: PublicSeoMetadata | null };
 }
 
 interface PublicContentResponse<T> {
@@ -323,6 +334,7 @@ interface ContentValue {
   collaborationTestimonials: CollaborationTestimonialsContent;
   contactFinalStatement: ContactFinalStatementContent;
   settings: HeroSettings;
+  seo: PublicSeoMetadata | null;
   visibleSections: string[] | null;
   loading: boolean;
   refresh: () => void;
@@ -361,6 +373,7 @@ const ContentContext = createContext<ContentValue>({
   contactFinalStatement:
     defaultContactFinalStatement as ContactFinalStatementContent,
   settings,
+  seo: null,
   visibleSections: null,
   loading: true,
   refresh: () => undefined
@@ -633,6 +646,7 @@ export function ContentProvider({ children }: { children: ReactNode }) {
       allowLocalDefaults ? defaultContactFinalStatement as ContactFinalStatementContent : emptyContactFinalStatement
     );
   const [visibleSections, setVisibleSections] = useState<string[] | null>(null);
+  const [seo, setSeo] = useState<PublicSeoMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const requestSequence = useRef(0);
 
@@ -653,6 +667,7 @@ export function ContentProvider({ children }: { children: ReactNode }) {
       if (requestId !== requestSequence.current) return;
 
       setVisibleSections(page.data.sections.map((section) => section.type));
+      setSeo(page.data.seo ?? null);
       for (const section of page.data.sections) {
         switch (section.type) {
           case "hero": setHero(section.content as HeroContent); break;
@@ -671,6 +686,7 @@ export function ContentProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("Public page API unavailable; editorial configuration is using safe defaults.", error);
+      setSeo(null);
       if (!allowLocalDefaults) setVisibleSections(null);
     }
 
@@ -747,7 +763,8 @@ export function ContentProvider({ children }: { children: ReactNode }) {
         capabilitiesTools,
         collaborationTestimonials,
         contactFinalStatement,
-      settings,
+        settings,
+        seo,
         visibleSections,
         loading,
         refresh: fetchContent

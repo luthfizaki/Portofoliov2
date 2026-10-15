@@ -6,9 +6,16 @@ export async function POST(request: NextRequest) {
   let body: unknown = { success: true, message: "Signed out.", data: null };
 
   try {
+    const headers: Record<string, string> = {
+      Cookie: request.headers.get("cookie") ?? "",
+    };
+    const origin = request.headers.get("origin");
+    const referer = request.headers.get("referer");
+    if (origin) headers.Origin = origin;
+    if (referer) headers.Referer = referer;
     const backendResponse = await fetch(`${apiInternalUrl}/api/v1/auth/logout`, {
       method: "POST",
-      headers: { Cookie: request.headers.get("cookie") ?? "" },
+      headers,
       cache: "no-store",
     });
     body = await backendResponse.json().catch(() => body);

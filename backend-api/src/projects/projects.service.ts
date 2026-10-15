@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, ProjectVisibility } from "@prisma/client";
+import * as argon2 from "argon2";
 import { PrismaService } from "../database/prisma.service";
 import { CreateProjectDto, ProjectBlockDto, ProjectFieldsDto } from "./dto/project.dto";
 import { buildProjectBlockPersistencePlan, mergeManagedBlockContent, projectBlockPersistenceConflicts, type ExistingProjectBlock } from "./project-block-persistence";
@@ -64,20 +65,60 @@ export class ProjectsService {
     };
   }
 
+  async listArchived(limitValue?: string) {
+    const parsed = Number.parseInt(limitValue ?? "50", 10);
+    const limit = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), MAX_LIMIT) : 50;
+    const where = { deletedAt: { not: null } };
+    const [projects, total] = await this.prisma.$transaction([
+      this.prisma.project.findMany({
+        where,
+        take: limit,
+        orderBy: [{ deletedAt: "desc" }, { updatedAt: "desc" }],
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          industry: true,
+          status: true,
+          updatedAt: true,
+          deletedAt: true,
+          categories: { select: { category: { select: { name: true } } }, take: 1 },
+        },
+      }),
+      this.prisma.project.count({ where }),
+    ]);
+
+    return {
+      success: true,
+      data: projects.map((project) => ({
+        id: project.id,
+        title: project.title,
+        slug: project.slug,
+        type: project.categories[0]?.category.name ?? project.industry ?? "Uncategorized",
+        status: project.status,
+        updatedAt: project.updatedAt,
+        deletedAt: project.deletedAt,
+      })),
+      meta: { total, limit },
+    };
+  }
+
   async get(id: string) {
     const project = await this.prisma.project.findFirst({
       where: { id, deletedAt: null },
       include: { blocks: { orderBy: { sortOrder: "asc" } }, categories: { include: { category: true } } },
     });
     if (!project) throw this.notFound();
-    return { success: true, data: project };
+    return { success: true, data: this.toAdminProject(project) };
   }
 
   async create(dto: CreateProjectDto) {
     this.validateBlockInputs(dto.blocks);
+    const visibility = (dto.visibility as ProjectVisibility | undefined) ?? ProjectVisibility.PUBLIC;
+    const passwordHash = await this.passwordHashForCreate(dto, visibility);
     const project = await this.prisma.$transaction(async (transaction) => {
       const slug = await this.availableSlug(dto.slug || dto.title, undefined, transaction);
-      const data = { ...this.toProjectData(dto), title: dto.title.trim(), slug };
+      const data = { ...this.toProjectData(dto), title: dto.title.trim(), slug, passwordHash };
       await this.ensureFeaturedCapacity(transaction, {
         featured: data.featured ?? false,
         visibility: data.visibility ?? ProjectVisibility.PUBLIC,
@@ -91,13 +132,16 @@ export class ProjectsService {
         ? created
         : transaction.project.findUniqueOrThrow({ where: { id: created.id }, include: { blocks: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }, categories: { include: { category: true } } } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-    return { success: true, message: "Project created.", data: project };
+    return { success: true, message: "Project created.", data: this.toAdminProject(project) };
   }
 
   async update(id: string, dto: ProjectFieldsDto) {
     this.validateBlockInputs(dto.blocks);
     const data = this.toProjectData(dto);
     if (dto.title !== undefined) data.title = dto.title.trim();
+    const suppliedPasswordHash = dto.accessPassword === undefined
+      ? undefined
+      : await this.hashAccessPassword(dto.accessPassword);
     const project = await this.prisma.$transaction(async (transaction) => {
       const current = await transaction.project.findFirst({
         where: { id, deletedAt: null },
@@ -105,6 +149,7 @@ export class ProjectsService {
           id: true,
           featured: true,
           visibility: true,
+          passwordHash: true,
           status: true,
           deletedAt: true,
           publishedAt: true,
@@ -113,6 +158,23 @@ export class ProjectsService {
       });
       if (!current) throw this.notFound();
       this.assertExpectedUpdatedAt(dto.expectedUpdatedAt, current.updatedAt);
+
+      const targetVisibility = (data.visibility as ProjectVisibility | undefined) ?? current.visibility;
+      if (dto.accessPassword !== undefined && targetVisibility !== ProjectVisibility.PASSWORD_PROTECTED) {
+        throw this.passwordOnlyForProtectedProjects();
+      }
+      if (targetVisibility === ProjectVisibility.PASSWORD_PROTECTED) {
+        if (suppliedPasswordHash) {
+          data.passwordHash = suppliedPasswordHash;
+        } else if (current.visibility !== ProjectVisibility.PASSWORD_PROTECTED || !current.passwordHash) {
+          throw this.projectPasswordRequired();
+        }
+      } else if (current.visibility === ProjectVisibility.PASSWORD_PROTECTED || dto.visibility !== undefined) {
+        // Clear credentials when explicitly switching away from protection, but
+        // avoid adding unrelated writes to ordinary metadata-only edits.
+        data.passwordHash = null;
+      }
+
       if (dto.slug !== undefined) data.slug = await this.availableSlug(dto.slug, id, transaction);
 
       await this.ensureFeaturedCapacity(transaction, {
@@ -129,7 +191,7 @@ export class ProjectsService {
         ? updated
         : transaction.project.findUniqueOrThrow({ where: { id }, include: { blocks: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }, categories: { include: { category: true } } } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-    return { success: true, message: "Project updated.", data: project };
+    return { success: true, message: "Project updated.", data: this.toAdminProject(project) };
   }
 
   async replaceBlocks(id: string, blocks: ProjectBlockDto[]) {
@@ -143,7 +205,7 @@ export class ProjectsService {
       await transaction.project.update({ where: { id }, data: { updatedAt: new Date() } });
       return transaction.project.findUniqueOrThrow({ where: { id }, include: { blocks: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }, categories: { include: { category: true } } } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-    return { success: true, message: "Project detail blocks saved.", data: updated };
+    return { success: true, message: "Project detail blocks saved.", data: this.toAdminProject(updated) };
   }
 
   async publish(id: string) {
@@ -166,13 +228,13 @@ export class ProjectsService {
         data: { status: "PUBLISHED", publishedAt, scheduledAt: null },
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-    return { success: true, message: "Project published.", data: project };
+    return { success: true, message: "Project published.", data: this.toAdminProject(project) };
   }
 
   async unpublish(id: string) {
     await this.ensureExists(id);
     const project = await this.prisma.project.update({ where: { id }, data: { status: "DRAFT", publishedAt: null, scheduledAt: null } });
-    return { success: true, message: "Project moved to draft.", data: project };
+    return { success: true, message: "Project moved to draft.", data: this.toAdminProject(project) };
   }
 
   async remove(id: string) {
@@ -193,7 +255,48 @@ export class ProjectsService {
 
       return transaction.project.update({ where: { id }, data: { deletedAt: null } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-    return { success: true, message: "Project restored.", data: restored };
+    return { success: true, message: "Project restored.", data: this.toAdminProject(restored) };
+  }
+
+  private async passwordHashForCreate(dto: CreateProjectDto, visibility: ProjectVisibility) {
+    if (dto.accessPassword !== undefined && visibility !== ProjectVisibility.PASSWORD_PROTECTED) {
+      throw this.passwordOnlyForProtectedProjects();
+    }
+    if (visibility !== ProjectVisibility.PASSWORD_PROTECTED) return null;
+    if (dto.accessPassword === undefined) throw this.projectPasswordRequired();
+    return this.hashAccessPassword(dto.accessPassword);
+  }
+
+  private async hashAccessPassword(password: string) {
+    if (typeof password !== "string" || !password.trim() || password.length < 8 || password.length > 256) {
+      throw new BadRequestException({
+        success: false,
+        code: "INVALID_PROJECT_PASSWORD",
+        message: "Project passwords must contain between 8 and 256 characters.",
+      });
+    }
+    return argon2.hash(password, { type: argon2.argon2id });
+  }
+
+  private projectPasswordRequired() {
+    return new BadRequestException({
+      success: false,
+      code: "PROJECT_PASSWORD_REQUIRED",
+      message: "Set a password before using password-protected visibility.",
+    });
+  }
+
+  private passwordOnlyForProtectedProjects() {
+    return new BadRequestException({
+      success: false,
+      code: "PASSWORD_VISIBILITY_MISMATCH",
+      message: "A project password can only be set when visibility is password protected.",
+    });
+  }
+
+  private toAdminProject<T extends { passwordHash: string | null }>(project: T) {
+    const { passwordHash, ...safeProject } = project;
+    return { ...safeProject, hasPassword: Boolean(passwordHash) };
   }
 
   private toProjectData(dto: ProjectFieldsDto): Prisma.ProjectUncheckedCreateInput {

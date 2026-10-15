@@ -29,6 +29,7 @@ export type EditableProject = {
   client: string | null; industry: string | null; year: number | null; role: string | null;
   duration: string | null; platform: string | null; services: string[]; tools: string[];
   featured: boolean; nda: boolean; visibility: "PUBLIC" | "UNLISTED" | "PASSWORD_PROTECTED" | "PRIVATE"; status: string;
+  hasPassword?: boolean;
   updatedAt: string;
   blocks?: ProjectBlock[];
 };
@@ -37,6 +38,7 @@ type FormState = {
   title: string; slug: string; excerpt: string; description: string; client: string; industry: string;
   year: string; role: string; duration: string; platform: string; services: string; tools: string;
   featured: boolean; nda: boolean; visibility: EditableProject["visibility"]; status: string;
+  accessPassword: string;
 };
 
 const defaultCaseStudy: CaseStudyState = {
@@ -119,6 +121,7 @@ function initialState(project?: EditableProject): FormState {
     client: project?.client ?? "", industry: project?.industry ?? "", year: project?.year?.toString() ?? "", role: project?.role ?? "",
     duration: project?.duration ?? "", platform: project?.platform ?? "", services: project?.services.join(", ") ?? "", tools: project?.tools.join(", ") ?? "",
     featured: project?.featured ?? false, nda: project?.nda ?? false, visibility: project?.visibility ?? "PUBLIC", status: project?.status ?? "DRAFT",
+    accessPassword: "",
   };
 }
 
@@ -151,7 +154,7 @@ function initialCaseStudy(project?: EditableProject): CaseStudyState {
   };
 }
 
-function asPayload(state: FormState) {
+function asPayload(state: FormState, includeAccessPassword = true) {
   const text = (value: string) => value.trim() || undefined;
   const tags = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
   return {
@@ -159,6 +162,7 @@ function asPayload(state: FormState) {
     client: text(state.client), industry: text(state.industry), year: state.year ? Number(state.year) : undefined,
     role: text(state.role), duration: text(state.duration), platform: text(state.platform), services: tags(state.services),
     tools: tags(state.tools), featured: state.featured, nda: state.nda, visibility: state.visibility,
+    ...(includeAccessPassword && state.visibility === "PASSWORD_PROTECTED" && state.accessPassword ? { accessPassword: state.accessPassword } : {}),
   };
 }
 
@@ -320,7 +324,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
   async function copyDraft() {
     setCopyingDraft(true);
     try {
-      await navigator.clipboard.writeText(draftJson(asPayload(form), blocksPayload(savedProject, caseStudy).blocks));
+      await navigator.clipboard.writeText(draftJson(asPayload(form, false), blocksPayload(savedProject, caseStudy).blocks));
       setNotice("Local draft JSON copied to the clipboard.");
     } catch {
       setError("Could not copy the draft JSON. Your local draft is still preserved; use Download draft JSON instead.");
@@ -330,7 +334,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
   }
 
   function downloadDraft() {
-    const blob = new Blob([draftJson(asPayload(form), blocksPayload(savedProject, caseStudy).blocks)], { type: "application/json" });
+    const blob = new Blob([draftJson(asPayload(form, false), blocksPayload(savedProject, caseStudy).blocks)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -418,7 +422,10 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
       setError("Save the local draft before publishing or unpublishing this project.");
       return;
     }
-    if (action === "delete" && !confirmNavigation("Archive project")) return;
+    if (action === "delete") {
+      if (isDirty && !confirmNavigation("Archive project")) return;
+      if (!window.confirm(`Archive "${project.title}"? It will be removed from the public project list and can be restored later.`)) return;
+    }
     setError(""); setNotice(""); setPublishing(true);
     try {
       const response = await fetch(`${apiUrl}/api/v1/admin/projects/${project.id}${action === "delete" ? "" : `/${action}`}`, { method: action === "delete" ? "DELETE" : "POST", credentials: "include" });
@@ -483,6 +490,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
               <label className="cms-field">Visibility<select value={form.visibility} onChange={(event) => setField("visibility", event.target.value as FormState["visibility"])}><option value="PUBLIC">Public</option><option value="UNLISTED">Unlisted</option><option value="PRIVATE">Private</option><option value="PASSWORD_PROTECTED">Password protected</option></select></label>
               <label className="cms-field cms-field--wide">Services<input value={form.services} onChange={(event) => setField("services", event.target.value)} placeholder="Research, UX, UI design" /></label>
               <label className="cms-field cms-field--wide">Tools<input value={form.tools} onChange={(event) => setField("tools", event.target.value)} placeholder="Figma, FigJam, Maze" /></label>
+              {form.visibility === "PASSWORD_PROTECTED" && <label className="cms-field cms-field--wide">Case study password<input type="password" value={form.accessPassword} onChange={(event) => setField("accessPassword", event.target.value)} placeholder={project?.hasPassword ? "Leave blank to keep the current password" : "Enter at least 8 characters"} autoComplete="new-password" minLength={8} maxLength={256} required={!project?.hasPassword} /><small>{project?.hasPassword ? "A password is already set. Leave this blank to keep it, or enter a new password to replace it." : "Set a password before saving this project with password-protected visibility."}</small></label>}
             </div>
             <div className="cms-checkboxes"><label><input type="checkbox" checked={form.featured} onChange={(event) => setField("featured", event.target.checked)} />Featured project</label><label><input type="checkbox" checked={form.nda} onChange={(event) => setField("nda", event.target.checked)} />NDA restricted</label></div>
           </section>
@@ -493,7 +501,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
               <label className="cms-field cms-field--wide">Hero Eyebrow<input value={caseStudy.eyebrow} onChange={(event) => setCaseField("eyebrow", event.target.value)} /></label>
               <label className="cms-field cms-field--wide">Hero Lead<textarea value={caseStudy.lede} onChange={(event) => setCaseField("lede", event.target.value)} rows={4} /></label>
               <label className="cms-field cms-field--wide">Hero Visual URL<input value={caseStudy.heroVisualUrl} onChange={(event) => setCaseField("heroVisualUrl", event.target.value)} /></label>
-              <label className="cms-upload-field">Hero Visual Upload<input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage("hero", file); }} /><span><ImagePlus size={15} />{uploading === "hero" ? "Uploading" : "Upload hero image"}</span></label>
+              <label className="cms-upload-field">Hero Visual Upload<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage("hero", file); }} /><span><ImagePlus size={15} />{uploading === "hero" ? "Uploading" : "Upload hero image"}</span></label>
               <label className="cms-field cms-field--wide">Hero Visual Alt<input value={caseStudy.heroVisualAlt} onChange={(event) => setCaseField("heroVisualAlt", event.target.value)} /></label>
               <label className="cms-field cms-field--wide">Summary Heading<textarea value={caseStudy.summaryHeading} onChange={(event) => setCaseField("summaryHeading", event.target.value)} rows={3} /></label>
               <label className="cms-field cms-field--wide">Summary Intro<textarea value={caseStudy.summaryIntro} onChange={(event) => setCaseField("summaryIntro", event.target.value)} rows={4} /></label>
@@ -514,7 +522,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
                   <label className="cms-field">Type<input value={item.type} onChange={(event) => setGallery(index, { type: event.target.value })} /></label>
                   <label className="cms-field">Layout<select value={item.className} onChange={(event) => setGallery(index, { className: event.target.value })}><option value="">Half width</option><option value="is-wide">Full width</option></select></label>
                   <label className="cms-field cms-field--wide">Image URL<input value={item.image} onChange={(event) => setGallery(index, { image: event.target.value })} /></label>
-                  <label className="cms-upload-field"><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(index, file); }} /><span><ImagePlus size={15} />{uploading === String(index) ? "Uploading" : "Upload image"}</span></label>
+                  <label className="cms-upload-field"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(index, file); }} /><span><ImagePlus size={15} />{uploading === String(index) ? "Uploading" : "Upload image"}</span></label>
                   <button className="cms-gallery-remove" type="button" onClick={() => setCaseField("gallery", caseStudy.gallery.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={14} />Remove</button>
                 </div>
               ))}
@@ -534,7 +542,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
                   {caseStudy.feature.images.map((image, index) => <div className="cms-feature-image-item" key={`${index}-${image.url}`}>
                     <label className="cms-field">Image URL<input value={image.url} onChange={(event) => setFeature(index, { url: event.target.value })} /></label>
                     <label className="cms-field">Alt Text<input value={image.alt} onChange={(event) => setFeature(index, { alt: event.target.value })} /></label>
-                    <label className="cms-upload-field"><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(["feature", index], file); }} /><span><ImagePlus size={15} />{uploading === `feature-${index}` ? "Uploading" : "Upload image"}</span></label>
+                    <label className="cms-upload-field"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(["feature", index], file); }} /><span><ImagePlus size={15} />{uploading === `feature-${index}` ? "Uploading" : "Upload image"}</span></label>
                     <button className="cms-gallery-remove" type="button" onClick={() => setCaseField("feature", { ...caseStudy.feature!, images: caseStudy.feature!.images.filter((_, imageIndex) => imageIndex !== index) })}><Trash2 size={14} />Remove</button>
                   </div>)}
                 </div>

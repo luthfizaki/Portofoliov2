@@ -1,16 +1,11 @@
-import { Injectable, InternalServerErrorException } from "@nestjs/common";
-import { MediaType } from "@prisma/client";
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import { MediaType, Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
-import { extname } from "node:path";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { PrismaService } from "../database/prisma.service";
-
-type UploadedFile = {
-  originalname: string;
-  mimetype: string;
-  size: number;
-  buffer: Buffer;
-};
+import { InvalidMediaUploadError, type UploadedMediaFile, validateMediaUpload } from "./media-validation";
+import { assertCmsContentWritesAllowed } from "../security/cms-write-guard";
+import { UpdateMediaMetadataDto } from "./dto/update-media-metadata.dto";
 
 class DisabledRealtimeTransport {
   readonly CONNECTING = 0;
@@ -64,26 +59,35 @@ export class MediaService {
     this.bucket = bucket;
   }
 
-  async store(file: UploadedFile) {
-    const extension =
-      extname(file.originalname).toLowerCase() ||
-      this.extensionFromMime(file.mimetype);
+  async store(file: UploadedMediaFile) {
+    assertCmsContentWritesAllowed();
+    let validated: ReturnType<typeof validateMediaUpload>;
+    try {
+      validated = validateMediaUpload(file);
+    } catch (error) {
+      if (error instanceof InvalidMediaUploadError) {
+        throw new BadRequestException({
+          success: false,
+          code: "INVALID_MEDIA_UPLOAD",
+          message: error.message,
+        });
+      }
+      throw error;
+    }
 
-    const filename = `id_${randomUUID().replaceAll("-", "").slice(0, 12)}${extension}`;
+    const filename = `id_${randomUUID().replaceAll("-", "").slice(0, 12)}${validated.extension}`;
 
     const storageKey = `uploads/${filename}`;
 
     const { error: uploadError } = await this.supabase.storage
       .from(this.bucket)
       .upload(storageKey, file.buffer, {
-        contentType: file.mimetype,
+        contentType: validated.mimeType,
         upsert: false,
       });
 
     if (uploadError) {
-      throw new InternalServerErrorException(
-        `Failed to upload file to storage: ${uploadError.message}`,
-      );
+      throw new InternalServerErrorException("Failed to upload file to storage.");
     }
 
     const {
@@ -95,12 +99,12 @@ export class MediaService {
     try {
       const asset = await this.prisma.mediaAsset.create({
         data: {
-          type: this.mediaType(file.mimetype),
+          type: this.mediaType(validated.mimeType),
           filename,
-          originalName: file.originalname,
+          originalName: validated.originalName,
           url: publicUrl,
           storageKey: `${this.bucket}/${storageKey}`,
-          mimeType: file.mimetype,
+          mimeType: validated.mimeType,
           size: file.size,
         },
       });
@@ -121,6 +125,72 @@ export class MediaService {
     }
   }
 
+
+  async list(query: { page?: string; limit?: string; type?: string; q?: string }) {
+    const page = this.positiveInteger(query.page, 1);
+    const limit = Math.min(this.positiveInteger(query.limit, 24), 100);
+    const requestedType = query.type?.trim().toUpperCase();
+    if (requestedType && !Object.values(MediaType).includes(requestedType as MediaType)) {
+      throw new BadRequestException({ success: false, code: "INVALID_MEDIA_TYPE", message: "The requested media type is not supported." });
+    }
+    const search = query.q?.trim().slice(0, 120);
+    const where: Prisma.MediaAssetWhereInput = {
+      deletedAt: null,
+      ...(requestedType ? { type: requestedType as MediaType } : {}),
+      ...(search ? { OR: [
+        { originalName: { contains: search, mode: "insensitive" } },
+        { filename: { contains: search, mode: "insensitive" } },
+        { altText: { contains: search, mode: "insensitive" } },
+        { caption: { contains: search, mode: "insensitive" } },
+      ] } : {}),
+    };
+    const select = {
+      id: true, type: true, filename: true, originalName: true, url: true, mimeType: true,
+      size: true, width: true, height: true, duration: true, altText: true, caption: true,
+      createdAt: true, updatedAt: true,
+    } as const;
+    const [items, total] = await Promise.all([
+      this.prisma.mediaAsset.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: "desc" }, select }),
+      this.prisma.mediaAsset.count({ where }),
+    ]);
+    return { success: true, data: items, meta: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } };
+  }
+
+  async updateMetadata(id: string, dto: UpdateMediaMetadataDto) {
+    assertCmsContentWritesAllowed();
+    if (dto.altText === undefined && dto.caption === undefined) {
+      throw new BadRequestException({ success: false, code: "EMPTY_MEDIA_UPDATE", message: "At least one metadata field must be supplied." });
+    }
+    const existing = await this.prisma.mediaAsset.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
+    if (!existing) {
+      throw new NotFoundException({ success: false, code: "MEDIA_NOT_FOUND", message: "Media asset was not found." });
+    }
+    const data: Prisma.MediaAssetUpdateInput = {};
+    if (dto.altText !== undefined) data.altText = this.normalizeMetadataText(dto.altText);
+    if (dto.caption !== undefined) data.caption = this.normalizeMetadataText(dto.caption);
+    const asset = await this.prisma.mediaAsset.update({
+      where: { id },
+      data,
+      select: {
+        id: true, type: true, filename: true, originalName: true, url: true, mimeType: true,
+        size: true, width: true, height: true, duration: true, altText: true, caption: true,
+        createdAt: true, updatedAt: true,
+      },
+    });
+    return { success: true, message: "Media metadata saved.", data: asset };
+  }
+
+  private normalizeMetadataText(value: string | null) {
+    if (value === null) return null;
+    const normalized = value.trim();
+    return normalized.length ? normalized : null;
+  }
+
+  private positiveInteger(value: string | undefined, fallback: number) {
+    const parsed = Number.parseInt(value ?? "", 10);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 100000) : fallback;
+  }
+
   private mediaType(mimeType: string) {
     if (mimeType.startsWith("image/")) return MediaType.IMAGE;
     if (mimeType.startsWith("video/")) return MediaType.VIDEO;
@@ -135,14 +205,4 @@ export class MediaService {
     return MediaType.OTHER;
   }
 
-  private extensionFromMime(mimeType: string) {
-    if (mimeType === "image/webp") return ".webp";
-    if (mimeType === "image/png") return ".png";
-    if (mimeType === "image/jpeg") return ".jpg";
-    if (mimeType === "image/svg+xml") return ".svg";
-    if (mimeType === "video/mp4") return ".mp4";
-    if (mimeType === "application/pdf") return ".pdf";
-
-    return "";
-  }
 }

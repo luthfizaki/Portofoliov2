@@ -15,12 +15,14 @@ type ParsedAuthCookie = {
 
 function splitSetCookieHeader(header: string) {
   return header
-    .split(/,(?=\s*portfolio_(?:access|refresh)_token=)/g)
+    // `Expires` contains a comma, so only split where the following value
+    // looks like the beginning of another cookie-pair.
+    .split(/,(?=\s*[^=;,\s]+=[^;,\s]*)/g)
     .map((value) => value.trim())
     .filter(Boolean);
 }
 
-function setCookieHeaders(headers: Headers) {
+export function setCookieHeaders(headers: Headers) {
   const headersWithGetter = headers as Headers & {
     getSetCookie?: () => string[];
   };
@@ -29,6 +31,25 @@ function setCookieHeaders(headers: Headers) {
 
   const combined = headers.get("set-cookie");
   return combined ? splitSetCookieHeader(combined) : [];
+}
+
+function authCookieName(header: string) {
+  const separatorIndex = header.indexOf("=");
+  return separatorIndex === -1 ? "" : header.slice(0, separatorIndex).trim();
+}
+
+/**
+ * Copies only the CMS session cookies as individual Set-Cookie fields. The
+ * strings are forwarded unchanged so attributes from the backend (including
+ * HttpOnly, Secure, SameSite, Path, Expires, Max-Age, and Domain) survive.
+ */
+export function appendBackendAuthCookies(responseHeaders: Headers, backendHeaders: Headers) {
+  for (const header of setCookieHeaders(backendHeaders)) {
+    const name = authCookieName(header);
+    if (name === accessTokenCookieName || name === refreshTokenCookieName) {
+      responseHeaders.append("Set-Cookie", header);
+    }
+  }
 }
 
 export function authCookiesFromBackend(headers: Headers) {

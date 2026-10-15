@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiInternalUrl } from "../../../../lib/api";
+import { appendBackendAuthCookies } from "../../../../lib/auth-cookies";
 
 type RouteContext = {
   params: Promise<{ path: string[] }>;
@@ -16,10 +17,19 @@ async function proxy(request: NextRequest, context: RouteContext) {
   const contentType = request.headers.get("content-type");
   const accept = request.headers.get("accept");
   const cookie = request.headers.get("cookie");
+  const origin = request.headers.get("origin");
+  const referer = request.headers.get("referer");
 
   if (contentType) headers.set("Content-Type", contentType);
   if (accept) headers.set("Accept", accept);
   if (cookie) headers.set("Cookie", cookie);
+  if (origin) headers.set("Origin", origin);
+  if (referer) headers.set("Referer", referer);
+  // This server-side secret is intentionally never exposed to browser responses.
+  const protectionBypassSecret = process.env.BACKEND_VERCEL_PROTECTION_BYPASS_SECRET;
+  if (protectionBypassSecret) {
+    headers.set("x-vercel-protection-bypass", protectionBypassSecret);
+  }
 
   const backendResponse = await fetch(targetUrl, {
     method: request.method,
@@ -35,6 +45,7 @@ async function proxy(request: NextRequest, context: RouteContext) {
   if (responseContentType) {
     responseHeaders.set("Content-Type", responseContentType);
   }
+  appendBackendAuthCookies(responseHeaders, backendResponse.headers);
 
   return new NextResponse(backendResponse.body, {
     status: backendResponse.status,

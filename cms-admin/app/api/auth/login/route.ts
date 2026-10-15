@@ -9,10 +9,15 @@ import { apiInternalUrl } from "../../../../lib/api";
 
 export async function POST(request: NextRequest) {
   const credentials = await request.json().catch(() => null);
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const origin = request.headers.get("origin");
+  const referer = request.headers.get("referer");
+  if (origin) headers.Origin = origin;
+  if (referer) headers.Referer = referer;
 
   const backendResponse = await fetch(`${apiInternalUrl}/api/v1/auth/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(credentials),
     cache: "no-store",
   });

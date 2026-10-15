@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Length, MaxLength, ValidateNested } from "class-validator";
+import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Length, MaxLength, MinLength, ValidateNested } from "class-validator";
 
 const statuses = ["DRAFT", "IN_REVIEW", "SCHEDULED", "PUBLISHED", "ARCHIVED"] as const;
 const visibilities = ["PUBLIC", "UNLISTED", "PASSWORD_PROTECTED", "PRIVATE"] as const;
@@ -20,6 +20,8 @@ export class ProjectFieldsDto {
   @IsOptional() @IsBoolean() featured?: boolean;
   @IsOptional() @IsBoolean() nda?: boolean;
   @IsOptional() @IsIn(visibilities) visibility?: (typeof visibilities)[number];
+  /** Plaintext is accepted only over the authenticated API and is never returned. */
+  @IsOptional() @IsString() @MinLength(8) @MaxLength(256) accessPassword?: string;
   @IsOptional() @IsIn(statuses) status?: (typeof statuses)[number];
   @IsOptional() @Type(() => Number) @IsInt() sortOrder?: number;
   /** Optional optimistic-lock value captured when the CMS editor loaded the project. */

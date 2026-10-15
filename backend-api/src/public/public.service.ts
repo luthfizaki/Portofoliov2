@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import * as argon2 from "argon2";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../database/prisma.service";
 import { ExperiencesService } from "../experiences/experiences.service";
@@ -7,6 +8,12 @@ import { TestimonialsService } from "../testimonials/testimonials.service";
 
 const MAX_LIMIT = 50;
 const MAX_FEATURED_PROJECTS = 3;
+
+type PublicSeoMetadata = {
+  title: string | null; description: string | null; canonical: string | null;
+  ogTitle: string | null; ogDescription: string | null; ogImageUrl: string | null;
+  noIndex: boolean; noFollow: boolean;
+};
 
 @Injectable()
 export class PublicService {
@@ -20,7 +27,7 @@ export class PublicService {
   async page(slug: string) {
     const page = await this.prisma.page.findFirst({
       where: { slug, status: "PUBLISHED", deletedAt: null, publishedAt: { lte: new Date() } },
-      include: { sections: { where: { isVisible: true }, orderBy: { sortOrder: "asc" } } },
+      include: { sections: { where: { isVisible: true }, orderBy: { sortOrder: "asc" } }, seo: true },
     });
     if (!page) throw new NotFoundException({ success: false, code: "NOT_FOUND", message: "Page was not found." });
     return {
@@ -28,6 +35,7 @@ export class PublicService {
       data: {
         name: page.name,
         slug: page.slug,
+        seo: this.toPublicSeo(page.seo),
         sections: page.sections.map((section) => ({ type: section.type, content: section.content })),
       },
     };
@@ -59,7 +67,8 @@ export class PublicService {
           coverMedia: { select: { url: true, altText: true } },
           categories: { include: { category: true } },
           tags: { include: { tag: true } },
-          metrics: { orderBy: { sortOrder: "asc" } },
+          seo: true,
+        metrics: { orderBy: { sortOrder: "asc" } },
           blocks: {
             where: { isVisible: true, type: { in: ["flagship", "archive", "HERO"] } },
             orderBy: { sortOrder: "asc" },
@@ -78,16 +87,74 @@ export class PublicService {
 
   async project(slug: string) {
     const project = await this.prisma.project.findFirst({
-      where: { slug, visibility: "PUBLIC", status: "PUBLISHED", deletedAt: null, publishedAt: { lte: new Date() } },
+      where: { slug, status: "PUBLISHED", deletedAt: null, publishedAt: { lte: new Date() } },
       include: {
         coverMedia: { select: { url: true, altText: true } },
         categories: { include: { category: true } },
         tags: { include: { tag: true } },
+        seo: true,
         metrics: { orderBy: { sortOrder: "asc" } },
         blocks: { where: { isVisible: true }, orderBy: { sortOrder: "asc" } },
       },
     });
-    if (!project) throw new NotFoundException({ success: false, code: "NOT_FOUND", message: "Project was not found." });
+    if (project?.visibility === "PASSWORD_PROTECTED") {
+      throw new ForbiddenException({
+        success: false,
+        code: "PASSWORD_REQUIRED",
+        message: "This project requires a password.",
+      });
+    }
+    if (!project || project.visibility !== "PUBLIC") {
+      throw new NotFoundException({ success: false, code: "NOT_FOUND", message: "Project was not found." });
+    }
+    return { success: true, data: this.toPublicProject(project) };
+  }
+
+  async accessProtectedProject(slug: string, password: string) {
+    const project = await this.prisma.project.findFirst({
+      where: {
+        slug,
+        visibility: "PASSWORD_PROTECTED",
+        status: "PUBLISHED",
+        deletedAt: null,
+        publishedAt: { lte: new Date() },
+      },
+      include: {
+        coverMedia: { select: { url: true, altText: true } },
+        categories: { include: { category: true } },
+        tags: { include: { tag: true } },
+        seo: true,
+        metrics: { orderBy: { sortOrder: "asc" } },
+        blocks: { where: { isVisible: true }, orderBy: { sortOrder: "asc" } },
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException({ success: false, code: "NOT_FOUND", message: "Project was not found." });
+    }
+    if (!project.passwordHash) {
+      throw new ForbiddenException({
+        success: false,
+        code: "PROJECT_PASSWORD_NOT_CONFIGURED",
+        message: "This project is not available until its password is configured.",
+      });
+    }
+
+    let matches = false;
+    try {
+      matches = await argon2.verify(project.passwordHash, password);
+    } catch {
+      // Malformed stored hashes fail closed instead of exposing project content.
+      matches = false;
+    }
+    if (!matches) {
+      throw new ForbiddenException({
+        success: false,
+        code: "INVALID_PROJECT_PASSWORD",
+        message: "The project password is incorrect.",
+      });
+    }
+
     return { success: true, data: this.toPublicProject(project) };
   }
 
@@ -104,7 +171,7 @@ export class PublicService {
   }
 
   private toPublicProject(project: {
-    id: string; title: string; slug: string; excerpt: string | null; description: string | null; client: string | null; industry: string | null; year: number | null; role: string | null; duration: string | null; platform: string | null; services: string[]; tools: string[]; featured: boolean; sortOrder: number; coverMedia: { url: string; altText: string | null } | null; categories: Array<{ category: { name: string; slug: string } }>; tags?: Array<{ tag: { name: string; slug: string } }>; metrics?: Array<{ value: string; label: string; note: string | null; sortOrder: number }>; blocks?: Array<{ type: string; title: string | null; content: Prisma.JsonValue; sortOrder: number; layoutVariant: string | null }>;
+    id: string; title: string; slug: string; excerpt: string | null; description: string | null; client: string | null; industry: string | null; year: number | null; role: string | null; duration: string | null; platform: string | null; services: string[]; tools: string[]; featured: boolean; sortOrder: number; coverMedia: { url: string; altText: string | null } | null; categories: Array<{ category: { name: string; slug: string } }>; tags?: Array<{ tag: { name: string; slug: string } }>; metrics?: Array<{ value: string; label: string; note: string | null; sortOrder: number }>; blocks?: Array<{ type: string; title: string | null; content: Prisma.JsonValue; sortOrder: number; layoutVariant: string | null }>; seo?: PublicSeoMetadata | null;
   }) {
     return {
       id: project.id, title: project.title, slug: project.slug, excerpt: project.excerpt, description: project.description,
@@ -115,6 +182,16 @@ export class PublicService {
       tags: project.tags?.map((item) => ({ name: item.tag.name, slug: item.tag.slug })) ?? [],
       metrics: project.metrics?.map((metric) => ({ value: metric.value, label: metric.label, note: metric.note, sortOrder: metric.sortOrder })) ?? [],
       blocks: project.blocks?.map((block) => ({ type: block.type, title: block.title, content: block.content, sortOrder: block.sortOrder, layoutVariant: block.layoutVariant })) ?? [],
+      seo: this.toPublicSeo(project.seo),
+    };
+  }
+
+  private toPublicSeo(seo: PublicSeoMetadata | null | undefined) {
+    if (!seo) return null;
+    return {
+      title: seo.title, description: seo.description, canonical: seo.canonical,
+      ogTitle: seo.ogTitle, ogDescription: seo.ogDescription, ogImageUrl: seo.ogImageUrl,
+      noIndex: seo.noIndex, noFollow: seo.noFollow,
     };
   }
 

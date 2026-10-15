@@ -4,6 +4,12 @@ import { ConfigService } from "@nestjs/config";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import type { RequestHandler } from "express";
 import helmet from "helmet";
+import {
+  isAllowedOrigin,
+  LOCAL_DEVELOPMENT_ORIGINS,
+  normalizeOrigin,
+  requestOriginGuard,
+} from "./security/request-origin";
 
 type CompressionFactory = (
   options?: import("compression").CompressionOptions,
@@ -20,18 +26,30 @@ function commaList(value?: string) {
   return value?.split(",").map((item) => item.trim()).filter(Boolean) ?? [];
 }
 
-function allowedCorsOrigins(config: ConfigService) {
-  return [
+export function allowedCorsOrigins(config: ConfigService) {
+  const configured = [
     config.get<string>("PORTFOLIO_URL"),
     config.get<string>("CMS_URL"),
     ...commaList(config.get<string>("CORS_ORIGINS")),
-    "http://localhost:3100",
-    "http://127.0.0.1:3100",
-    "http://localhost:3001",
-    "http://127.0.0.1:3001",
-    "http://localhost:4173",
-    "http://127.0.0.1:4173",
-  ].filter((value): value is string => Boolean(value) && value !== "*");
+  ].filter((value): value is string => Boolean(value));
+  if (configured.some((value) => value === "*")) {
+    throw new Error("Wildcard CORS origins are not supported.");
+  }
+  if (configured.some((value) => normalizeOrigin(value) === null)) {
+    throw new Error("CORS origins must be absolute HTTP or HTTPS origins.");
+  }
+
+  const configuredOrigins = [...new Set(configured.map((value) => normalizeOrigin(value) as string))];
+  const isProduction = config.get<string>("NODE_ENV") === "production";
+  const origins = isProduction
+    ? configuredOrigins.filter((origin) => !LOCAL_DEVELOPMENT_ORIGINS.some((localOrigin) => localOrigin === origin))
+    : [...new Set([...configuredOrigins, ...LOCAL_DEVELOPMENT_ORIGINS])];
+
+  if (isProduction && origins.length === 0) {
+    throw new Error("Production CORS requires an explicit origin allowlist.");
+  }
+
+  return origins;
 }
 
 export function configureNestApp(app: INestApplication) {
@@ -42,8 +60,15 @@ export function configureNestApp(app: INestApplication) {
   app.use(helmet());
   app.use(compression());
   app.use(cookieParser());
+  app.use(requestOriginGuard(allowedOrigins));
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
+      if (!origin || isAllowedOrigin(origin, allowedOrigins)) {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
+    },
     credentials: true,
   });
   app.useGlobalPipes(

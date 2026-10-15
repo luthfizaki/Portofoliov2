@@ -22,6 +22,23 @@ const caseStudyAliases: Record<string, string> = {
   takaful: "takaful-mobile-app"
 };
 
+function HomeSeoMetadata() {
+  const { seo } = useContent();
+  return (
+    <SEO
+      title={seo?.title || "Luthfi Arzaki | UI/UX Designer"}
+      description={seo?.description || "Luthfi Arzaki, UI/UX Designer and Product Designer crafting thoughtful digital products and experiences."}
+      canonical={seo?.canonical || "https://lyzastudio.my.id/"}
+      type="website"
+      ogTitle={seo?.ogTitle || undefined}
+      ogDescription={seo?.ogDescription || undefined}
+      ogImageUrl={seo?.ogImageUrl || undefined}
+      noIndex={seo?.noIndex ?? false}
+      noFollow={seo?.noFollow ?? false}
+    />
+  );
+}
+
 function HomeSections() {
   const { loading, visibleSections } = useContent();
   const isVisible = (type: string) =>
@@ -66,12 +83,7 @@ export default function App() {
 
   return (
     <ContentProvider>
-      <SEO
-        title="Luthfi Arzaki | UI/UX Designer"
-        description="Luthfi Arzaki, UI/UX Designer and Product Designer crafting thoughtful digital products and experiences."
-        canonical="https://lyzastudio.my.id/"
-        type="website"
-      />
+      <HomeSeoMetadata />
       <HomeSections />
     </ContentProvider>
   );

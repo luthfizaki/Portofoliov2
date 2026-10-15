@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { publicApiUrl } from "../lib/apiBase";
 import { CaseFeature, CaseFeatureImage } from "./CaseFeature";
+import { SEO } from "./SEO";
 
 const fallbackDeliverables = [
   "MOBILE FLOWS",
@@ -30,6 +31,16 @@ type PublicProject = {
   coverUrl: string | null;
   coverAlt: string | null;
   blocks: ProjectBlock[];
+  seo?: {
+    title: string | null;
+    description: string | null;
+    canonical: string | null;
+    ogTitle: string | null;
+    ogDescription: string | null;
+    ogImageUrl: string | null;
+    noIndex: boolean;
+    noFollow: boolean;
+  } | null;
 };
 
 const allowCaseStudyFallback = import.meta.env.DEV;
@@ -116,6 +127,10 @@ function caseFeatureValue(value: unknown) {
 export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: string }) {
   const [project, setProject] = useState<PublicProject | null>(null);
   const [loading, setLoading] = useState(true);
+  const [passwordRequired, setPasswordRequired] = useState(false);
+  const [passwordValue, setPasswordValue] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
 
   useEffect(() => {
     document.body.classList.add("case-study-is-visible");
@@ -128,8 +143,14 @@ export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: str
     async function fetchProject() {
       try {
         const response = await fetch(`${publicApiUrl}/api/v1/public/projects/${slug}`);
-        const body = await response.json();
-        if (!cancelled && response.ok && body?.success) setProject(body.data);
+        const body = await response.json().catch(() => null);
+        if (cancelled) return;
+        if (response.status === 403 && body?.code === "PASSWORD_REQUIRED") {
+          setPasswordRequired(true);
+        } else if (response.ok && body?.success && body?.data) {
+          setProject(body.data);
+          setPasswordRequired(false);
+        }
       } catch (error) {
         if (allowCaseStudyFallback) {
           console.warn("Project detail API unavailable; development fallback case study content is active.", error);
@@ -143,6 +164,37 @@ export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: str
     void fetchProject();
     return () => { cancelled = true; };
   }, [slug]);
+
+  async function submitPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (passwordSubmitting) return;
+    setPasswordSubmitting(true);
+    setPasswordError("");
+    try {
+      const response = await fetch(`${publicApiUrl}/api/v1/public/projects/${slug}/access`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: passwordValue }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body?.success || !body?.data) {
+        setPasswordError(
+          body?.code === "INVALID_PROJECT_PASSWORD"
+            ? "That password is incorrect. Please try again."
+            : body?.message || "This case study could not be unlocked. Please try again.",
+        );
+        return;
+      }
+      setProject(body.data);
+      setPasswordRequired(false);
+      setPasswordValue("");
+      setPasswordError("");
+    } catch {
+      setPasswordError("The access service is unavailable. Please try again shortly.");
+    } finally {
+      setPasswordSubmitting(false);
+    }
+  }
 
   const content = useMemo(() => {
     const hero = block(project, "CASE_HERO");
@@ -178,6 +230,59 @@ export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: str
     };
   }, [project]);
 
+  if (!loading && passwordRequired && !project) {
+    return (
+      <main className="case-study case-study--protected" aria-labelledby="case-study-access-title">
+        <SEO
+          title="Protected Case Study | Luthfi Arzaki"
+          description="This case study is password protected."
+          canonical={`https://lyzastudio.my.id/case-study/${slug}`}
+          type="article"
+          noIndex
+          noFollow
+        />
+        <section className="case-study__hero">
+          <div className="case-study__ambient case-study__ambient--hero" />
+          <div className="case-study__container">
+            <div className="case-study__topbar">
+              <a href="/#flagship-products">←&nbsp; BACK TO SELECTED WORK</a>
+              <span>CASE STUDY&nbsp; / &nbsp;PASSWORD REQUIRED</span>
+            </div>
+            <div className="case-study__access">
+              <p className="case-study__eyebrow">PROTECTED CASE STUDY</p>
+              <h1 id="case-study-access-title">This project is password protected.</h1>
+              <p className="case-study__lede">Enter the password shared by the project owner to view this case study.</p>
+              <form className="case-study__access-form" onSubmit={submitPassword}>
+                <label htmlFor="case-study-password">Project password</label>
+                <div className="case-study__access-controls">
+                  <input
+                    id="case-study-password"
+                    name="password"
+                    type="password"
+                    value={passwordValue}
+                    onChange={(event) => {
+                      setPasswordValue(event.target.value);
+                      if (passwordError) setPasswordError("");
+                    }}
+                    autoComplete="current-password"
+                    minLength={8}
+                    maxLength={256}
+                    required
+                    aria-describedby={passwordError ? "case-study-password-error" : undefined}
+                  />
+                  <button type="submit" disabled={passwordSubmitting}>
+                    {passwordSubmitting ? "Checking…" : "View case study"}
+                  </button>
+                </div>
+                {passwordError && <p className="case-study__access-error" id="case-study-password-error" role="alert">{passwordError}</p>}
+              </form>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   if (!loading && !project && !allowCaseStudyFallback) {
     return (
       <main className="case-study" aria-labelledby="case-study-title">
@@ -200,6 +305,19 @@ export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: str
 
   return (
     <main className={`case-study case-study--${slug}`} aria-labelledby="case-study-title">
+      {project && (
+        <SEO
+          title={project.seo?.title || project.title || content.title}
+          description={project.seo?.description || project.excerpt || project.description || content.lede}
+          canonical={project.seo?.canonical || `https://lyzastudio.my.id/case-study/${project.slug || slug}`}
+          type="article"
+          ogTitle={project.seo?.ogTitle || undefined}
+          ogDescription={project.seo?.ogDescription || undefined}
+          ogImageUrl={project.seo?.ogImageUrl || undefined}
+          noIndex={project.seo?.noIndex ?? false}
+          noFollow={project.seo?.noFollow ?? false}
+        />
+      )}
       <section className="case-study__hero">
         <div className="case-study__ambient case-study__ambient--hero" />
         <div className="case-study__container">
