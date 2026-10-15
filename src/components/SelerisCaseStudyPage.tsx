@@ -233,6 +233,14 @@ export function SelerisCaseStudyPage({ slug = "seleris-superapp" }: { slug?: str
   if (!loading && passwordRequired && !project) {
     return (
       <main className="case-study case-study--protected" aria-labelledby="case-study-access-title">
+        <SEO
+          title="Protected Case Study | Luthfi Arzaki"
+          description="This case study is password protected."
+          canonical={`https://lyzastudio.my.id/case-study/${slug}`}
+          type="article"
+          noIndex
+          noFollow
+        />
         <section className="case-study__hero">
           <div className="case-study__ambient case-study__ambient--hero" />
           <div className="case-study__container">
