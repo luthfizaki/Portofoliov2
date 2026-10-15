@@ -46,7 +46,7 @@ jobs:
 
       - name: Run CMS API proxy tests
         working-directory: backend-api
-        run: pnpm exec tsx --test "../cms-admin/app/api/v1/[...path]/route.spec.ts"
+        run: pnpm exec tsx --test "$GITHUB_WORKSPACE/cms-admin/app/api/v1/[...path]/route.spec.ts"
 
       - name: Build backend
         run: pnpm --filter @portfoliov2/backend-api build
