@@ -71,6 +71,7 @@ test("server-side proxy adds the configured Vercel protection bypass header", as
         assert.equal(response.status, 200);
         assert.equal(new Headers(calls[0][1]?.headers).get("x-vercel-protection-bypass"), "test-only-protection-token");
         assert.equal((await response.text()).includes("test-only-protection-token"), false);
+        assert.equal(response.headers.get("x-vercel-protection-bypass"), null);
       },
     );
   } finally {
