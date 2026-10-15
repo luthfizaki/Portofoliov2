@@ -29,6 +29,7 @@ const protectedControllers: Controller[] = [
 
 const readEndpoints: Endpoint[] = [
   [ProjectsController, "list"],
+  [ProjectsController, "listArchived"],
   [ProjectsController, "get"],
   [PagesController, "list"],
   [PagesController, "get"],
