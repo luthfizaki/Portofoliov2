@@ -154,7 +154,7 @@ function initialCaseStudy(project?: EditableProject): CaseStudyState {
   };
 }
 
-function asPayload(state: FormState) {
+function asPayload(state: FormState, includeAccessPassword = true) {
   const text = (value: string) => value.trim() || undefined;
   const tags = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
   return {
@@ -162,7 +162,7 @@ function asPayload(state: FormState) {
     client: text(state.client), industry: text(state.industry), year: state.year ? Number(state.year) : undefined,
     role: text(state.role), duration: text(state.duration), platform: text(state.platform), services: tags(state.services),
     tools: tags(state.tools), featured: state.featured, nda: state.nda, visibility: state.visibility,
-    ...(state.visibility === "PASSWORD_PROTECTED" && state.accessPassword ? { accessPassword: state.accessPassword } : {}),
+    ...(includeAccessPassword && state.visibility === "PASSWORD_PROTECTED" && state.accessPassword ? { accessPassword: state.accessPassword } : {}),
   };
 }
 
@@ -324,7 +324,7 @@ export function ProjectEditor({ project, user }: { project?: EditableProject; us
   async function copyDraft() {
     setCopyingDraft(true);
     try {
-      await navigator.clipboard.writeText(draftJson(asPayload(form), blocksPayload(savedProject, caseStudy).blocks));
+      await navigator.clipboard.writeText(draftJson(asPayload(form, false), blocksPayload(savedProject, caseStudy).blocks));
       setNotice("Local draft JSON copied to the clipboard.");
     } catch {
       setError("Could not copy the draft JSON. Your local draft is still preserved; use Download draft JSON instead.");
