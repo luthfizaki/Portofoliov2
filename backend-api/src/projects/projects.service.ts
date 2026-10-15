@@ -64,6 +64,44 @@ export class ProjectsService {
     };
   }
 
+  async listArchived(limitValue?: string) {
+    const parsed = Number.parseInt(limitValue ?? "50", 10);
+    const limit = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), MAX_LIMIT) : 50;
+    const where = { deletedAt: { not: null } };
+    const [projects, total] = await this.prisma.$transaction([
+      this.prisma.project.findMany({
+        where,
+        take: limit,
+        orderBy: [{ deletedAt: "desc" }, { updatedAt: "desc" }],
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          industry: true,
+          status: true,
+          updatedAt: true,
+          deletedAt: true,
+          categories: { select: { category: { select: { name: true } } }, take: 1 },
+        },
+      }),
+      this.prisma.project.count({ where }),
+    ]);
+
+    return {
+      success: true,
+      data: projects.map((project) => ({
+        id: project.id,
+        title: project.title,
+        slug: project.slug,
+        type: project.categories[0]?.category.name ?? project.industry ?? "Uncategorized",
+        status: project.status,
+        updatedAt: project.updatedAt,
+        deletedAt: project.deletedAt,
+      })),
+      meta: { total, limit },
+    };
+  }
+
   async get(id: string) {
     const project = await this.prisma.project.findFirst({
       where: { id, deletedAt: null },
