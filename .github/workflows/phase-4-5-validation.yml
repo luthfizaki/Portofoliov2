@@ -44,6 +44,9 @@ jobs:
           fi
           pnpm exec tsx --test "${test_files[@]}"
 
+      - name: Run CMS API proxy tests
+        run: pnpm --filter @portfoliov2/backend-api exec tsx --test ../cms-admin/app/api/v1/[...path]/route.spec.ts
+
       - name: Build backend
         run: pnpm --filter @portfoliov2/backend-api build
 
