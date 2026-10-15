@@ -23,6 +23,12 @@ export class ProjectsController {
     return this.projects.create(dto);
   }
 
+  @Get("archived")
+  @Roles(UserRole.SUPER_ADMIN, UserRole.EDITOR, UserRole.VIEWER)
+  listArchived(@Query("limit") limit?: string) {
+    return this.projects.listArchived(limit);
+  }
+
   @Get(":id")
   @Roles(UserRole.SUPER_ADMIN, UserRole.EDITOR, UserRole.VIEWER)
   get(@Param("id") id: string) {
