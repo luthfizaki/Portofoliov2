@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import * as argon2 from "argon2";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../database/prisma.service";
 import { ExperiencesService } from "../experiences/experiences.service";
@@ -78,7 +79,7 @@ export class PublicService {
 
   async project(slug: string) {
     const project = await this.prisma.project.findFirst({
-      where: { slug, visibility: "PUBLIC", status: "PUBLISHED", deletedAt: null, publishedAt: { lte: new Date() } },
+      where: { slug, status: "PUBLISHED", deletedAt: null, publishedAt: { lte: new Date() } },
       include: {
         coverMedia: { select: { url: true, altText: true } },
         categories: { include: { category: true } },
@@ -87,7 +88,63 @@ export class PublicService {
         blocks: { where: { isVisible: true }, orderBy: { sortOrder: "asc" } },
       },
     });
-    if (!project) throw new NotFoundException({ success: false, code: "NOT_FOUND", message: "Project was not found." });
+    if (project?.visibility === "PASSWORD_PROTECTED") {
+      throw new ForbiddenException({
+        success: false,
+        code: "PASSWORD_REQUIRED",
+        message: "This project requires a password.",
+      });
+    }
+    if (!project || project.visibility !== "PUBLIC") {
+      throw new NotFoundException({ success: false, code: "NOT_FOUND", message: "Project was not found." });
+    }
+    return { success: true, data: this.toPublicProject(project) };
+  }
+
+  async accessProtectedProject(slug: string, password: string) {
+    const project = await this.prisma.project.findFirst({
+      where: {
+        slug,
+        visibility: "PASSWORD_PROTECTED",
+        status: "PUBLISHED",
+        deletedAt: null,
+        publishedAt: { lte: new Date() },
+      },
+      include: {
+        coverMedia: { select: { url: true, altText: true } },
+        categories: { include: { category: true } },
+        tags: { include: { tag: true } },
+        metrics: { orderBy: { sortOrder: "asc" } },
+        blocks: { where: { isVisible: true }, orderBy: { sortOrder: "asc" } },
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException({ success: false, code: "NOT_FOUND", message: "Project was not found." });
+    }
+    if (!project.passwordHash) {
+      throw new ForbiddenException({
+        success: false,
+        code: "PROJECT_PASSWORD_NOT_CONFIGURED",
+        message: "This project is not available until its password is configured.",
+      });
+    }
+
+    let matches = false;
+    try {
+      matches = await argon2.verify(project.passwordHash, password);
+    } catch {
+      // Malformed stored hashes fail closed instead of exposing project content.
+      matches = false;
+    }
+    if (!matches) {
+      throw new ForbiddenException({
+        success: false,
+        code: "INVALID_PROJECT_PASSWORD",
+        message: "The project password is incorrect.",
+      });
+    }
+
     return { success: true, data: this.toPublicProject(project) };
   }
 
